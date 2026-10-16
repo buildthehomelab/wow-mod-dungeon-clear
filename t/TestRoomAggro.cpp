@@ -190,6 +190,30 @@ TEST(RoomAggroRegistryTest, GundrakSladranClearsTheSnakePit)
     EXPECT_EQ(RoomAggroRegistry::Find(604, 29774), nullptr);
 }
 
+// Garr (Molten Core, 409) has no scripted room pull, but raid logs of 2026-10-15/16
+// had his surrounding trash join every Garr pull. Spawn-row and path distances from
+// his spawn (691.0, -498.4): Ancient Core Hound patrols 18.2-39.7, 38.5-46.3 and a
+// long patrol passing at 58.4yd; Molten Destroyers 55.9-78.9; Lava Annihilators
+// 56.0 / 78.0 (+5yd wander) and 108.8. radius 85 takes all but the 108.8yd one.
+TEST(RoomAggroRegistryTest, MoltenCoreGarrClearsHisCave)
+{
+    RoomAggroBoss const* garr = RoomAggroRegistry::Find(409, 12057);
+    ASSERT_NE(garr, nullptr);
+    EXPECT_FLOAT_EQ(garr->radius, 85.0f);
+    EXPECT_EQ(garr->memberEntries, (std::vector<uint32>{11673, 11659, 11665}));
+    EXPECT_FALSE(RoomAggroRegistry::IsMemberEntry(*garr, 12099));  // Firesworn: his own adds
+    EXPECT_FLOAT_EQ(garr->pullOutRadius, 0.0f);
+    EXPECT_FLOAT_EQ(RoomAggroRegistry::SkirtOverride(409, 12057), 35.0f);
+
+    float const sphere = 28.0f;  // ~aggro + reaches + margin + padding
+    EXPECT_TRUE(RoomAggroRegistry::IsRoomTrash(*garr, 11665, 83.0f, sphere));   // wandered Annihilator
+    EXPECT_TRUE(RoomAggroRegistry::IsRoomTrash(*garr, 11659, 78.9f, sphere));   // far Destroyer
+    EXPECT_TRUE(RoomAggroRegistry::IsRoomTrash(*garr, 11673, 39.7f, sphere));   // hound on its path
+    EXPECT_FALSE(RoomAggroRegistry::IsRoomTrash(*garr, 11673, 18.2f, sphere));  // at his side: comes along
+    EXPECT_FALSE(RoomAggroRegistry::IsRoomTrash(*garr, 11665, 108.8f, sphere)); // next room
+    EXPECT_EQ(RoomAggroRegistry::Find(409, 12099), nullptr);
+}
+
 TEST(RoomAggroRegistryTest, MechanarSepethreaHasPullOutRoom)
 {
     RoomAggroBoss const* sep = RoomAggroRegistry::Find(554, 19221);
