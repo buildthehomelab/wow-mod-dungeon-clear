@@ -36,6 +36,7 @@ namespace
         o.atCommitRange = false;
         o.patrolContended = false;
         o.patrolWaitExpired = false;
+        o.patrolNear = false;
         return o;
     }
 }
@@ -185,6 +186,70 @@ TEST(DcPullDecision, AdvancedApproachingNotContendedCommits)
     o.atCommitRange = false;
     o.patrolContended = false;
     EXPECT_EQ(DecidePull(o), PullVerdict::Advanced);
+}
+
+// ---- Patrol guard (PullPatrolGuard) ---------------------------------------
+// Molten Core 2026-10-16: a five-hound pack (15 thirds, exactly the ceiling) read
+// LEEROY and was pulled while Lucifron's patrol stood 14-32yd off; he joined five
+// seconds in. The guard holds on proximity alone, whatever the estimate says.
+
+TEST(DcPullDecision, PatrolGuardHoldsALeeroyPack)
+{
+    PullObservation o = Base();
+    o.patrolNear = true;           // the 5-hound pack: advanced == false
+    EXPECT_EQ(DecidePull(o), PullVerdict::PatrolWaitHold);
+}
+
+TEST(DcPullDecision, PatrolGuardHoldsAnAdvancedPack)
+{
+    PullObservation o = Base();
+    o.advanced = true;
+    o.patrolNear = true;
+    EXPECT_EQ(DecidePull(o), PullVerdict::PatrolWaitHold);
+}
+
+TEST(DcPullDecision, PatrolGuardHoldsBeforeCommitRangeInsteadOfWalkingIn)
+{
+    // The contended branch would answer ApproachAsLeeroy here; with the patrol
+    // near, walking in is exactly the pull being avoided, so hold where we stand.
+    PullObservation o = Base();
+    o.advanced = true;
+    o.patrolWaitEnabled = true;
+    o.patrolContended = true;
+    o.atCommitRange = false;
+    o.patrolNear = true;
+    EXPECT_EQ(DecidePull(o), PullVerdict::PatrolWaitHold);
+}
+
+TEST(DcPullDecision, PatrolGuardWaitExpiredCommitsTheClassification)
+{
+    // Budget spent: never deadlock on a patrol that does not leave.
+    PullObservation o = Base();
+    o.patrolNear = true;
+    o.patrolWaitExpired = true;
+    EXPECT_EQ(DecidePull(o), PullVerdict::Leeroy);
+    o.advanced = true;
+    EXPECT_EQ(DecidePull(o), PullVerdict::Advanced);
+}
+
+TEST(DcPullDecision, PatrolGuardNeverOverridesTheEngagementLatch)
+{
+    PullObservation o = Base();
+    o.patrolNear = true;
+    o.inCombat = true;
+    EXPECT_EQ(DecidePull(o), PullVerdict::NoOp);
+    o = Base();
+    o.patrolNear = true;
+    o.sameTarget = true;
+    o.currentlyAdvanced = true;   // committed Advanced stays locked (the Forming
+    EXPECT_EQ(DecidePull(o), PullVerdict::NoOp);  // dwell owns the guard there)
+}
+
+TEST(DcPullDecision, PatrolGuardOffLeavesTheOldLadder)
+{
+    PullObservation o = Base();
+    o.patrolNear = false;
+    EXPECT_EQ(DecidePull(o), PullVerdict::Leeroy);
 }
 
 // ---------------------------------------------------------------------------

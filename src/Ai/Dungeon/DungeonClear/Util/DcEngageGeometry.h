@@ -355,6 +355,23 @@ public:
     // when neither owns the difficulty.
     static bool TargetInsideBystanderPack(Player* bot, Unit* target);
 
+    // Patrol guard (PullPatrolGuard): the creature that makes starting a pull on
+    // `target` unsafe right now, or nullptr. A threat is out of combat, hostile, not
+    // in `target`'s formation, on the target's floor, and MOVES on its own — a DB
+    // waypoint mover, a member of a formation led by one (Lucifron's Protectors),
+    // or a dungeon/world boss that wanders or is walking — and stands within its
+    // aggro reach + PullEnRouteMargin + PullPatrolBuffer of the target or of
+    // `camp` (nullptr = no camp yet). One walking AWAY from both, already outside
+    // its real reach of both, is not a threat: it will not be back before the
+    // fight starts. A boss that stands still never qualifies — waiting does not
+    // move it; the room-aggro skirt keeps the fight away from it instead.
+    //
+    // Same exclusions as TargetInsideBystanderPack, deliberately without its
+    // PullEnRouteAvoid / sweep arming: this is armed by PullPatrolGuard alone
+    // (raid-only by default). One grid search around the target.
+    static Creature* PatrolThreatNear(Player* bot, AiObjectContext* ctx, Unit* target,
+                                      Position const* camp);
+
     // Is the en-route pack SWEEP in force for this bot? A non-heroic dungeon on
     // the RouteSweepRegistry allow-list — see that header for why the scope is a
     // per-map table rather than a difficulty or a config key, and

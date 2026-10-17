@@ -1382,6 +1382,45 @@ TEST(DungeonClearPatrolGateTest, ZeroBudgetProceeds)
     EXPECT_FALSE(ShouldWaitForPatrol(6u, 5u, 5u, since, 100u, 0u, since));
 }
 
+// --- ShouldHoldForPatrol (the patrol guard's clock) -------------------------
+
+using DungeonClearMath::ShouldHoldForPatrol;
+
+// One budget per pull: a guard hold that ran out leaves the latch armed, so the
+// same patrol still standing there does not start a second wait.
+TEST(DungeonClearPatrolGateTest, GuardHoldsThenProceedsAndStaysSpent)
+{
+    std::uint32_t since = 0u;
+    EXPECT_TRUE(ShouldHoldForPatrol(true, since, 2000u, 30000u, since));
+    EXPECT_EQ(since, 2000u);
+    EXPECT_TRUE(ShouldHoldForPatrol(true, since, 31000u, 30000u, since));
+    EXPECT_FALSE(ShouldHoldForPatrol(true, since, 32000u, 30000u, since));
+    EXPECT_FALSE(ShouldHoldForPatrol(true, since, 60000u, 30000u, since));
+    EXPECT_EQ(since, 2000u);
+}
+
+// The patrol walking off releases the hold at once and clears the latch.
+TEST(DungeonClearPatrolGateTest, GuardReleasesWhenThePatrolLeaves)
+{
+    std::uint32_t since = 2000u;
+    EXPECT_FALSE(ShouldHoldForPatrol(false, since, 9000u, 30000u, since));
+    EXPECT_EQ(since, 0u);
+}
+
+// ShouldWaitForPatrol is ShouldHoldForPatrol on the estimate's contention.
+TEST(DungeonClearPatrolGateTest, WaitForPatrolIsHoldOnContention)
+{
+    for (std::uint32_t full : {4u, 5u, 6u, 8u})
+        for (std::uint32_t reduced : {4u, 5u, 6u})
+        {
+            std::uint32_t a = 0u, b = 0u;
+            bool const contended = full > 5u && reduced <= 5u;
+            EXPECT_EQ(ShouldWaitForPatrol(full, reduced, 5u, 0u, 100u, 8000u, a),
+                      ShouldHoldForPatrol(contended, 0u, 100u, 8000u, b));
+            EXPECT_EQ(a, b);
+        }
+}
+
 // --- ShouldHandoffFizzledPull (advanced-pull engage-fizzle latch) ----------
 using DungeonClearMath::ShouldHandoffFizzledPull;
 

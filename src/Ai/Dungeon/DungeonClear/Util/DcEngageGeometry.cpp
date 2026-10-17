@@ -52,6 +52,7 @@
 #include "Map.h"
 #include "ModelIgnoreFlags.h"
 #include "MotionMaster.h"
+#include "MoveSpline.h"
 #include "ObjectAccessor.h"
 #include "Pet.h"
 #include "PathGenerator.h"
@@ -647,6 +648,98 @@ bool DcEngageGeometry::TargetInsideBystanderPack(Player* bot, Unit* target)
         }
     }
     return false;
+}
+
+Creature* DcEngageGeometry::PatrolThreatNear(Player* bot, AiObjectContext* ctx,
+                                             Unit* target, Position const* camp)
+{
+    if (!bot || !ctx || !target)
+        return nullptr;
+    if (!DcSettings::GetBool(bot, "PullPatrolGuard"))
+        return nullptr;
+
+    // The padding a threat's own reach gets: the en-route avoidance's margin (the
+    // party cutting corners behind the tank) plus the guard's buffer (the patrol
+    // keeps walking for the few seconds between the release and the first hit).
+    float const pad = DcSettings::GetFloat(bot, "PullEnRouteMargin") +
+                      DcSettings::GetFloat(bot, "PullPatrolBuffer");
+
+    // Search around the TARGET wide enough to also hold anything near the camp,
+    // which sits up to a drag behind it. kMaxAggroReach mirrors the classifier.
+    constexpr float kMaxAggroReach = 50.0f;
+    float const campSpan = camp ? target->GetExactDist2d(camp) : 0.0f;
+    float const searchRadius = kMaxAggroReach + pad + std::min(campSpan, 80.0f);
+
+    std::list<Creature*> nearby;
+    Acore::AnyUnitInObjectRangeCheck check(target, searchRadius);
+    Acore::CreatureListSearcher<Acore::AnyUnitInObjectRangeCheck> searcher(
+        target, nearby, check);
+    Cell::VisitObjects(target, searcher, searchRadius);
+
+    CreatureGroup const* targetGroup =
+        target->ToCreature() ? target->ToCreature()->GetFormation() : nullptr;
+    uint32 const targetFormation = targetGroup ? targetGroup->GetId() : 0u;
+
+    for (Creature* c : nearby)
+    {
+        if (!c || !c->IsAlive() || c == target)
+            continue;
+        if (!bot->IsHostileTo(c) || c->IsCritter() || c->IsTotem() || IsDisplayedDead(c))
+            continue;
+        // Already fighting: it is in the fight we are in, not one we could start.
+        if (c->IsInCombat())
+            continue;
+        CreatureGroup const* grp = c->GetFormation();
+        if (targetFormation && grp && grp->GetId() == targetFormation)
+            continue;
+        if (std::fabs(c->GetPositionZ() - target->GetPositionZ()) > DC_Z_LEVEL_TOLERANCE)
+            continue;
+
+        // Does it move on its own? A formation follower inherits its leader's
+        // route, so Lucifron's Protectors count as patrollers with him.
+        bool patrol = c->GetDefaultMovementType() == WAYPOINT_MOTION_TYPE;
+        if (!patrol && grp)
+            if (Creature const* leader = grp->GetLeader())
+                patrol = leader != c &&
+                         leader->GetDefaultMovementType() == WAYPOINT_MOTION_TYPE;
+        bool const boss = DcTargeting::IsDungeonBossEntry(ctx, c->GetEntry()) ||
+                          c->isWorldBoss();
+        bool const movingBoss =
+            boss && (c->GetDefaultMovementType() == RANDOM_MOTION_TYPE || c->isMoving());
+        if (!patrol && !movingBoss)
+            continue;
+
+        float const reach = AggroReach(bot, c, pad);
+        float const toTarget = target->GetExactDist2d(c);
+        float const toCamp = camp ? c->GetExactDist2d(camp)
+                                  : std::numeric_limits<float>::max();
+        if (toTarget > reach && toCamp > reach)
+            continue;
+
+        // Walking away from both, and already outside its real (unpadded) reach
+        // of both: by the time the pull lands it is further still. This is the
+        // release a human times — "he's turned and walking off, go".
+        if (c->isMoving() && c->movespline && !c->movespline->Finalized())
+        {
+            G3D::Vector3 const dest = c->movespline->FinalDestination();
+            Position const destPos(dest.x, dest.y, dest.z);
+            float const rawReach = AggroReach(bot, c, 0.0f);
+            bool const leavingTarget = target->GetExactDist2d(&destPos) >= toTarget &&
+                                       toTarget > rawReach;
+            bool const leavingCamp = !camp || (camp->GetExactDist2d(&destPos) >= toCamp &&
+                                               toCamp > rawReach);
+            if (leavingTarget && leavingCamp)
+                continue;
+        }
+
+        DC_PULL_DEBUG("[DC:{}] patrol guard: {} (entry {}{}) {:.1f}yd from pack {}, "
+                      "{:.1f}yd from camp, reach+buffer {:.1f} -> not pulling yet",
+                      bot->GetName(), c->GetName(), c->GetEntry(),
+                      boss ? ", boss" : "", toTarget, target->GetGUID().ToString(),
+                      camp ? toCamp : -1.0f, reach);
+        return c;
+    }
+    return nullptr;
 }
 
 void DcEngageGeometry::AnchorChase(Player* bot, AiObjectContext* ctx, Unit* target)

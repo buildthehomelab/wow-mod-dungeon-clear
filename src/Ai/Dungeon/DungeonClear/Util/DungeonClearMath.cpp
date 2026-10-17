@@ -297,6 +297,13 @@ bool DungeonClearMath::ShouldWaitForPatrol(std::uint32_t fullCount,
     // Patrol-contended only when the lone patrollers are the ONLY reason the pull
     // is over the ceiling: full over, reduced (without them) at/under.
     bool const contended = fullCount > ceiling && reducedCount <= ceiling;
+    return ShouldHoldForPatrol(contended, waitSince, now, waitMs, waitSinceOut);
+}
+
+bool DungeonClearMath::ShouldHoldForPatrol(bool contended, std::uint32_t waitSince,
+                                           std::uint32_t now, std::uint32_t waitMs,
+                                           std::uint32_t& waitSinceOut)
+{
     if (!contended)
     {
         waitSinceOut = 0;

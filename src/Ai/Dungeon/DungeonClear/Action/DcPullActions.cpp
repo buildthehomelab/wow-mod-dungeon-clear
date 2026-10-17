@@ -1143,6 +1143,34 @@ bool DungeonClearPullAction::Execute(Event /*event*/)
                               "({}/{} ms)", bot->GetName(), now - since, setTimeoutMs);
                 return true;
             }
+
+            // PATROL GUARD AT THE TAG. The governor's guard (DcPullPlanner) runs only
+            // until a verdict commits — an Advanced commit is locked for the rest of
+            // the approach — so this dwell is the last point where the pull can still
+            // not happen: the party is set, the tank is at its commit spot, and a
+            // patrol may have walked back in since the verdict (Lucifron's ~75s loop
+            // passes 9-12yd from three of the hound packs). Hold the tag until it
+            // walks off, on the same one-per-pull PullPatrolWaitSec budget, so it can
+            // never stall the run. Pull-backs and scripted stages are authored plans
+            // with their own timing, and are left alone.
+            if (pull.scriptedStage < 0 && !pull.bossPullback)
+            {
+                Unit* const packNow = DcTargeting::GetPullTarget(botAI);
+                Creature const* const threat =
+                    packNow ? DcEngageGeometry::PatrolThreatNear(bot, context, packNow, &camp)
+                            : nullptr;
+                uint32 const waitMs =
+                    uint32(DcSettings::GetFloat(bot, "PullPatrolWaitSec") * 1000.0f);
+                if (DungeonClearMath::ShouldHoldForPatrol(threat != nullptr,
+                                                          pull.patrolWaitSince, now, waitMs,
+                                                          pull.patrolWaitSince))
+                {
+                    DC_PULL_TRACE("[DC:{}] pull forming: party set, holding the tag for "
+                                  "{} ({:.1f}yd from the pack)", bot->GetName(),
+                                  threat->GetName(), packNow->GetExactDist2d(threat));
+                    return true;
+                }
+            }
             // SCRIPTED: drop anything still driving the tank before the tag leg
             // starts. The route rungs stand down once the phase leaves Idle, but
             // that cannot un-launch a spline issued on the very tick the pull

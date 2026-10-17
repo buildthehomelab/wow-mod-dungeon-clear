@@ -453,6 +453,18 @@ namespace DungeonClearMath
                              std::uint32_t now, std::uint32_t waitMs,
                              std::uint32_t& waitSinceOut);
 
+    // The latch/clock half of ShouldWaitForPatrol with the contention already
+    // decided by the caller, so the patrol guard (a patrolling creature or moving
+    // boss near the pack or the fight spot — DcEngageGeometry::PatrolThreatNear)
+    // shares ONE wait budget per pull with the lone-patroller contention above.
+    // `contended` false clears the latch and proceeds; true arms/keeps it and
+    // waits until `waitMs` has elapsed, leaving the latch armed past the timeout
+    // so the same contention cannot re-fire the wait. ShouldWaitForPatrol is this
+    // with contended = fullCount > ceiling && reducedCount <= ceiling.
+    bool ShouldHoldForPatrol(bool contended, std::uint32_t waitSince,
+                             std::uint32_t now, std::uint32_t waitMs,
+                             std::uint32_t& waitSinceOut);
+
     // Scripted-stage MUSTER gate (pure). A ScriptedPullRegistry stage is a planned
     // fight against a hand-counted pack, and the party should arrive at it topped
     // up — the way it arrives at a boss — rather than merely "not resting".

@@ -299,6 +299,37 @@ namespace
         // 20yd aggro and the Firesworn around him.
         { 409, 12057, 85.0f, { 11673, 11659, 11665 }, false, 0.0f, 0.0f,
           /*pullOutRadius*/ 0.0f, /*skirtRadius*/ 35.0f },
+
+        // Molten Core (409): Lucifron. No scripted room pull either; the problem is
+        // his PATROL. He walks a ~186yd loop (waypoint path 566050: 1000,-955 ->
+        // 1037,-986 spawn -> 1070,-1007, ~75s at walk) with his two Flamewaker
+        // Protectors in formation, and it passes 8.6, 11.4 and 12.4yd from three of
+        // the five Core Hound packs in his hall. The 2026-10-16 log: the hound pack
+        // led by 56629 was walked in on and fought where it stood, Lucifron and both
+        // Protectors walked into the fight five seconds later and the 56638 pack
+        // nine seconds after that — ten hounds and a boss for 7.5 minutes. A hound
+        // fight outlasts his loop, so no pull TIMING keeps him out of a fight held
+        // on his path; the fight has to move off it. Flag him so the hounds around
+        // him are cleared before he is pulled, each by the drag-to-camp pull (a
+        // non-zero pullOutRadius forces it), with the camp held outside the skirt.
+        // Several packs coming along in one drag is fine; fighting on his path is
+        // not. (The patrol guard — PullPatrolGuard — times each tag for when he has
+        // walked off.)
+        //
+        // Measured from the LIVE boss, so the radius has to hold every pack from
+        // every point of the loop: farthest pack member from any waypoint is 63.9
+        // (56629), 94.4 (56638) and 91.3yd (56639), +5yd wander -> 100. The two
+        // packs by Magmadar (56648 / 56651) drift in and out as he walks; they are
+        // hounds, pulled the same careful way, and his east end passes 11yd from
+        // 56651, so taking them early is the right side to err on.
+        //
+        // pullOutRadius 6: the packs his loop brushes must stay room trash while he
+        // walks past them. The computed exclusion (~33yd) would drop a pack each
+        // time he passed, and a room that reads empty for a moment opens the boss
+        // pull with that pack standing on his path. 6 is under his 8.6yd closest
+        // approach. Whitelist = Core Hounds only (his Protectors come with him).
+        { 409, 12118, 100.0f, { 11671 }, false, 0.0f, 0.0f,
+          /*pullOutRadius*/ 6.0f, /*skirtRadius*/ 40.0f },
     };
 }
 
