@@ -284,6 +284,21 @@ namespace
           /*pullOutRadius*/ 12.0f, /*skirtRadius*/ 32.0f,
           /*hasCampBox*/ true, /*campMinX*/ -11013.0f, /*campMaxX*/ -10900.0f,
           /*campMinY*/ -1940.0f, /*campMaxY*/ -1800.0f },
+
+        // Molten Core (409): Garr. No scripted room pull, but his fight is long
+        // and mobile (eight Firesworn chase their targets, Destroyers' Knockdown,
+        // Garr wanders) and his cave is ringed by trash: two Ancient Core Hounds
+        // patrolling through it (18 and 38yd from his spawn), Molten Destroyers
+        // at 56-79yd and wandering Lava Annihilators at 56-78yd. Raid logs of
+        // 2026-10-15/16 had both Destroyers, two or three Annihilators and both
+        // hounds join every Garr pull, and a Firesworn that runs more than 40yd
+        // from him erupts for four times the damage, so the fight can't be moved
+        // away from them either. Clear them first. Whitelist = those three
+        // entries only (the Firesworn are his own adds and come with him).
+        // skirtRadius 35 keeps the dragged packs fought well clear of his
+        // 20yd aggro and the Firesworn around him.
+        { 409, 12057, 85.0f, { 11673, 11659, 11665 }, false, 0.0f, 0.0f,
+          /*pullOutRadius*/ 0.0f, /*skirtRadius*/ 35.0f },
     };
 }
 
