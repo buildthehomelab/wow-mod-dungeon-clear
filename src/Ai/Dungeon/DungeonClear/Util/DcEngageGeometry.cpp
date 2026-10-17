@@ -688,7 +688,13 @@ DcEngageGeometry::PatrolThreat DcEngageGeometry::PatrolThreatNear(Player* bot,
     Creature const* const targetCreature = target->ToCreature();
     CreatureGroup const* targetGroup = targetCreature ? targetCreature->GetFormation() : nullptr;
     uint32 const targetFormation = targetGroup ? targetGroup->GetId() : 0u;
-    ObjectGuid const targetLinked = sObjectMgr->GetLinkedRespawnGuid(target->GetGUID());
+    // creature_linked_respawn is keyed by the spawn's DB guid (entry + spawn id), not the
+    // live guid the map hands out.
+    auto const dbGuid = [](Creature const* c)
+    { return ObjectGuid::Create<HighGuid::Unit>(c->GetEntry(), c->GetSpawnId()); };
+    ObjectGuid const targetDb = targetCreature ? dbGuid(targetCreature) : ObjectGuid::Empty;
+    ObjectGuid const targetLinked =
+        targetCreature ? sObjectMgr->GetLinkedRespawnGuid(targetDb) : ObjectGuid::Empty;
 
     for (Creature* c : nearby)
     {
@@ -704,8 +710,10 @@ DcEngageGeometry::PatrolThreat DcEngageGeometry::PatrolThreatNear(Player* bot,
 
         CreatureGroup const* grp = c->GetFormation();
         float const toTarget = target->GetExactDist2d(c);
-        bool const linked = (targetLinked && targetLinked == c->GetGUID()) ||
-                            sObjectMgr->GetLinkedRespawnGuid(c->GetGUID()) == target->GetGUID();
+        ObjectGuid const candDb = dbGuid(c);
+        bool const linked = targetCreature &&
+                            ((targetLinked && targetLinked == candDb) ||
+                             sObjectMgr->GetLinkedRespawnGuid(candDb) == targetDb);
         if (DungeonClearMath::IsPatrolPackmate(
                 targetFormation && grp && grp->GetId() == targetFormation,
                 targetFormation != 0u, grp != nullptr, linked, toTarget, kPackRadius))
@@ -743,7 +751,9 @@ DcEngageGeometry::PatrolThreat DcEngageGeometry::PatrolThreatNear(Player* bot,
         bool receding = false;
         if (c->isMoving() && c->movespline && !c->movespline->Finalized())
         {
-            G3D::Vector3 const dest = c->movespline->FinalDestination();
+            // The next point it walks to: a smooth path is one spline over the whole loop,
+            // whose final point says nothing about where it is heading now.
+            G3D::Vector3 const dest = c->movespline->CurrentDestination();
             Position const destPos(dest.x, dest.y, dest.z);
             receding = DungeonClearMath::IsReceding(toTarget, target->GetExactDist2d(&destPos)) &&
                        (!camp || DungeonClearMath::IsReceding(toCamp, camp->GetExactDist2d(&destPos)));
