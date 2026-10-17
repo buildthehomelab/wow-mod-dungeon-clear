@@ -330,6 +330,26 @@ namespace
         // approach. Whitelist = Core Hounds only (his Protectors come with him).
         { 409, 12118, 100.0f, { 11671 }, false, 0.0f, 0.0f,
           /*pullOutRadius*/ 6.0f, /*skirtRadius*/ 40.0f },
+
+        // Blackwing Lair (469): Firemaw. No scripted room pull; his floor is the
+        // goblin workshop. From his spawn (84572, -7520.2,-1025.8,449.1) there are
+        // 22 mobs 22.1-35.2yd out on his own floor — 16 Blackwing Technicians, 4
+        // Warlocks, 2 Spellbinders, an Overseer — then a gap to the next group at
+        // 41.2-46.7yd (Technician 84135, Spellbinder 84559, Warlock 84560, Overseer
+        // 84558). Live (2026-10-17 13:36, and the 10/16 night run the same way):
+        // the tank opened on Firemaw with that ring standing, 20 Technicians and 4
+        // Warlocks joined within seconds, and Bomb / Rain of Fire / Shadow Flame
+        // killed 47 (43 the night before).
+        //
+        // radius 47 takes the ring and the near edge of the next group and stops
+        // short of Technician 84134 (49.2yd) and the lower-floor Technicians at
+        // 51yd+ (z 408.6, unreachable from here). Whitelist = those four entries
+        // (Chromaggus' spawn is 28yd off, a floor up). pullOutRadius 10 keeps the
+        // ring's nearest members (22yd, inside the computed ~28yd exclusion)
+        // clearable and forces the drag-to-camp pull; skirtRadius 40 puts the camp
+        // outside the whole ring, so no dragged pack is fought in his aggro.
+        { 469, 11983, 47.0f, { 13996, 12459, 12457, 12461 }, false, 0.0f, 0.0f,
+          /*pullOutRadius*/ 10.0f, /*skirtRadius*/ 40.0f },
     };
 }
 

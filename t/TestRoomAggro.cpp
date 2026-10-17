@@ -240,6 +240,33 @@ TEST(RoomAggroRegistryTest, MoltenCoreLucifronClearsTheHoundsOnHisPatrol)
     EXPECT_EQ(RoomAggroRegistry::Find(409, 12119), nullptr);
 }
 
+// Firemaw (Blackwing Lair, 469) stands in a ring of goblin-workshop trash: 22 mobs
+// 22.1-35.2yd from his spawn (16 Technicians, 4 Warlocks, 2 Spellbinders, an
+// Overseer), the next group from 41.2 to 46.7yd, Technician 84134 at 49.2yd and
+// the lower-floor Technicians from 51yd (3D) on. 2026-10-16 and 10-17 both had
+// the ring join the Firemaw pull.
+TEST(RoomAggroRegistryTest, BlackwingLairFiremawClearsTheWorkshopRing)
+{
+    RoomAggroBoss const* firemaw = RoomAggroRegistry::Find(469, 11983);
+    ASSERT_NE(firemaw, nullptr);
+    EXPECT_FLOAT_EQ(firemaw->radius, 47.0f);
+    EXPECT_EQ(firemaw->memberEntries, (std::vector<uint32>{13996, 12459, 12457, 12461}));
+    EXPECT_FALSE(RoomAggroRegistry::IsMemberEntry(*firemaw, 14020));  // Chromaggus, a floor up
+    // The ring's nearest members are inside the computed ~28yd exclusion, so the
+    // row needs a pull-out radius (and with it the drag-to-camp pull)...
+    EXPECT_GT(firemaw->pullOutRadius, 0.0f);
+    EXPECT_LT(firemaw->pullOutRadius, 22.1f);
+    // ...and a skirt past the whole ring, so no camp is fought inside it.
+    EXPECT_GT(RoomAggroRegistry::SkirtOverride(469, 11983), 35.2f);
+
+    float const bossSafe = firemaw->pullOutRadius;
+    EXPECT_TRUE(RoomAggroRegistry::IsRoomTrash(*firemaw, 12459, 22.1f, bossSafe));  // nearest Warlock
+    EXPECT_TRUE(RoomAggroRegistry::IsRoomTrash(*firemaw, 13996, 35.2f, bossSafe));  // ring's far edge
+    EXPECT_TRUE(RoomAggroRegistry::IsRoomTrash(*firemaw, 12461, 46.7f, bossSafe));  // next group's Overseer
+    EXPECT_FALSE(RoomAggroRegistry::IsRoomTrash(*firemaw, 13996, 49.2f, bossSafe)); // further down the room
+    EXPECT_FALSE(RoomAggroRegistry::IsRoomTrash(*firemaw, 13996, 51.1f, bossSafe)); // the floor below
+}
+
 TEST(RoomAggroRegistryTest, MechanarSepethreaHasPullOutRoom)
 {
     RoomAggroBoss const* sep = RoomAggroRegistry::Find(554, 19221);
