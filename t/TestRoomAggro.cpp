@@ -214,6 +214,32 @@ TEST(RoomAggroRegistryTest, MoltenCoreGarrClearsHisCave)
     EXPECT_EQ(RoomAggroRegistry::Find(409, 12099), nullptr);
 }
 
+// Lucifron (Molten Core, 409) patrols a loop (path 566050) that passes 8.6-12.4yd
+// from three Core Hound packs; 2026-10-16 he walked into a hound fight held on his
+// path. Distances from his LIVE position, over the whole loop: pack 56629 3-64yd,
+// 56638 9-94yd, 56639 21-91yd; the Magmadar-side packs 56651 11-121yd and 56648
+// 39-134yd.
+TEST(RoomAggroRegistryTest, MoltenCoreLucifronClearsTheHoundsOnHisPatrol)
+{
+    RoomAggroBoss const* luc = RoomAggroRegistry::Find(409, 12118);
+    ASSERT_NE(luc, nullptr);
+    EXPECT_FLOAT_EQ(luc->radius, 100.0f);
+    EXPECT_EQ(luc->memberEntries, (std::vector<uint32>{11671}));
+    EXPECT_FALSE(RoomAggroRegistry::IsMemberEntry(*luc, 12119));  // Protectors: his formation
+    // A pull-out radius forces the drag-to-camp pull for every room-clear pull.
+    EXPECT_GT(luc->pullOutRadius, 0.0f);
+    EXPECT_FLOAT_EQ(RoomAggroRegistry::SkirtOverride(409, 12118), 40.0f);
+
+    // Kept wherever he is on the loop: the farthest hound of his three packs
+    // (+5yd wander), and a hound he is walking right past.
+    float const bossSafe = luc->pullOutRadius;  // a pull-out row's exclusion
+    EXPECT_TRUE(RoomAggroRegistry::IsRoomTrash(*luc, 11671, 99.4f, bossSafe));
+    EXPECT_TRUE(RoomAggroRegistry::IsRoomTrash(*luc, 11671, 8.6f, bossSafe));
+    EXPECT_FALSE(RoomAggroRegistry::IsRoomTrash(*luc, 11671, 134.0f, bossSafe));
+    EXPECT_FALSE(RoomAggroRegistry::IsRoomTrash(*luc, 12119, 4.0f, bossSafe));
+    EXPECT_EQ(RoomAggroRegistry::Find(409, 12119), nullptr);
+}
+
 TEST(RoomAggroRegistryTest, MechanarSepethreaHasPullOutRoom)
 {
     RoomAggroBoss const* sep = RoomAggroRegistry::Find(554, 19221);
