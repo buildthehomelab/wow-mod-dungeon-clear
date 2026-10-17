@@ -1254,8 +1254,10 @@ DungeonClear.PullPatrolWait = 1
 #        before giving up and committing the Advanced verdict anyway — so a patrol
 #        that is parked on a stationary waypoint, or pacing very slowly, can't stall
 #        the run indefinitely. The clock starts when the tank reaches commit range
-#        and the contention is confirmed. Also the budget of the patrol guard
-#        below (one wait per pull, shared by both).
+#        and the contention is confirmed. Also the soft budget of the patrol guard
+#        below (one wait per pull, shared by both); past it the guard keeps holding
+#        only while the patrol walks toward the pull, up to twice this, then pulls.
+#        Range 1-120.
 #
 #        Default: 8.0 (heroic 18.0, raid 30.0)
 #
@@ -1273,9 +1275,14 @@ DungeonClear.PullPatrolWaitSec = 8.0
 #        does not hold — and checks again right before the advanced pull's tag.
 #        Unlike PullPatrolWait this does not depend on the pack's size: a raid fight
 #        lasts long enough for any patrol to walk into it (Molten Core: Lucifron
-#        joining a Core Hound pull). The hold gives up after PullPatrolWaitSec and
-#        pulls anyway, so it can never stall the run. A boss that stands still is
-#        never waited on.
+#        joining a Core Hound pull). Packmates (same formation, linked respawn) and
+#        patrols with no line of sight to the pack or camp are ignored. After
+#        PullPatrolWaitSec the hold releases on the first tick the patrol is
+#        walking away, and at twice that it pulls regardless, so it can never stall
+#        the run. A boss that stands still is never waited on.
+#        While a PATROLLING room-aggro boss's room is pre-cleared (Lucifron), the
+#        drag-to-camp camp also keeps its clearance from his whole patrol route,
+#        not just from where he stands.
 #            0 = off, 1 = on
 #
 #        Default: 0 (raid: 1)

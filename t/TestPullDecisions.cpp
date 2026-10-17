@@ -353,6 +353,48 @@ TEST(DcPullStandDown, ClearDynamicVerdictDropsAPatrolHold)
     EXPECT_EQ(pull.patrolWaitSince, 0u);
 }
 
+// ---------------------------------------------------------------------------
+// DcPullContext::ScopePatrolBudgetTo — the patrol-hold budget belongs to one pack.
+// The Forming dwell's guard spends pull.patrolWaitSince; only the Dynamic governor
+// resets it per pack, and it never runs on pull setting On, so the commit scopes it.
+// ---------------------------------------------------------------------------
+
+TEST(DcPullPatrolBudget, CommitToANewPackStartsAFreshBudget)
+{
+    DcPullContext pull;
+    pull.decisionTarget = ObjectGuid(uint64(0xF130004123456789ull));  // pack A
+    pull.patrolWaitSince = 4000u;                                     // spent on A
+    pull.ScopePatrolBudgetTo(ObjectGuid(uint64(0xF130004100000001ull)));  // commit B
+    EXPECT_EQ(pull.patrolWaitSince, 0u);
+}
+
+TEST(DcPullPatrolBudget, GovernorHoldOnTheSamePackCarriesIntoForming)
+{
+    // One wait per pull: what the governor already spent holding for this pack
+    // is not handed out again at the tag.
+    DcPullContext pull;
+    ObjectGuid const pack(uint64(0xF130004123456789ull));
+    pull.decisionTarget = pack;
+    pull.patrolWaitSince = 4000u;
+    pull.ScopePatrolBudgetTo(pack);
+    EXPECT_EQ(pull.patrolWaitSince, 4000u);
+}
+
+TEST(DcPullPatrolBudget, PullSettingOnNeverCarriesABudgetOver)
+{
+    // No governor on pull setting On: decisionTarget stays empty, so every commit
+    // starts clean — including a re-pull of the same pack after a fizzle.
+    DcPullContext pull;
+    ObjectGuid const pack(uint64(0xF130004123456789ull));
+    pull.patrolWaitSince = 4000u;   // spent on the previous pull's Forming dwell
+    pull.ScopePatrolBudgetTo(pack);
+    EXPECT_EQ(pull.patrolWaitSince, 0u);
+    pull.patrolWaitSince = 9000u;
+    pull.pullTarget = pack;
+    pull.ScopePatrolBudgetTo(pack);
+    EXPECT_EQ(pull.patrolWaitSince, 0u);
+}
+
 TEST(DcPullStandDown, ClearDynamicVerdictDropsAStandingAdvanced)
 {
     DcPullContext pull;

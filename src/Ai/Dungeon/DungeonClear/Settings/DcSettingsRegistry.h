@@ -680,11 +680,13 @@ inline constexpr DcSettingDef kDcSettings[] =
     // loops, and giving up means committing the heavier maneuver into a pack that
     // was about to be two mobs smaller.
     //
-    // RAID: 30s, the clamp ceiling. PullPatrolWaitSec is also the budget of the
-    // patrol guard below, and a raid patrol loop is long: Lucifron's is ~186yd,
-    // about 75s at walk, so 8s (or heroic's 18) gives up long before he turns.
+    // RAID: 30s. PullPatrolWaitSec is also the SOFT budget of the patrol guard
+    // below, and a raid patrol loop is long: Lucifron's is ~186yd, about 75s at
+    // walk, so 8s (or heroic's 18) gives up long before he turns. Past the soft
+    // budget the guard holds only while the patrol walks AT the pull, up to twice
+    // the budget (DungeonClearMath::PatrolHoldHardFactor), then pulls anyway.
     { "PullPatrolWait",        DcType::Bool,   1,   0,   1,  true  },
-    { "PullPatrolWaitSec",     DcType::Float,  8,   1,  30,  true,  18, 30 },
+    { "PullPatrolWaitSec",     DcType::Float,  8,   1, 120,  true,  18, 30 },
 
     // Patrol guard (Dynamic mode only). The patrol-wait above is an ESTIMATE
     // question — it only fires when a lone patroller is what tips a pack over the
@@ -701,10 +703,11 @@ inline constexpr DcSettingDef kDcSettings[] =
     // The tank holds where it stands (decision 3, "Waiting for patrol") at first
     // sight of the pack, and again in the advanced pull's Forming dwell right before
     // the tag; a patrol already walking AWAY and outside its real aggro reach does
-    // not hold. The hold shares PullPatrolWaitSec's budget, one per pull, so a
-    // patrol that never leaves cannot stall the run. A boss that never moves is not
-    // waited on (it will be there in 30s too): its room-aggro row / skirt keeps the
-    // fight away from it instead.
+    // not hold. The hold shares PullPatrolWaitSec's budget, one per pull; past it
+    // only a patrol walking AT the pull keeps the hold, and twice the budget is a
+    // hard cap, so a patrol that never leaves cannot stall the run. A boss that
+    // never moves is not waited on (it will be there in 30s too): its room-aggro
+    // row / skirt keeps the fight away from it instead.
     //
     // RAID-only by default: a raid fight lasts long enough for any patrol to walk
     // into it, and a raid boss joining a trash pull is a wipe. Dungeons keep the

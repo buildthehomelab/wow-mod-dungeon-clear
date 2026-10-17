@@ -901,8 +901,9 @@ void DcPullPlanner::UpdateDynamicPullMode(PlayerbotAI* botAI, AiObjectContext* c
             pull.camp.GetExactDist2d(target) <=
                 DcSettings::GetFloat(bot, "PullMaxDrag") + DcSettings::GetFloat(bot, "PullSetback"))
             guardCamp = &pull.camp;
-        Creature const* const threat =
+        DcEngageGeometry::PatrolThreat const guard =
             DcEngageGeometry::PatrolThreatNear(bot, context, target, guardCamp);
+        Creature const* const threat = guard.creature;
         obs.patrolNear = threat != nullptr;
 
         // The lone-patroller contention clock runs (and latches) only AT commit
@@ -924,8 +925,12 @@ void DcPullPlanner::UpdateDynamicPullMode(PlayerbotAI* botAI, AiObjectContext* c
                 obs.patrolNear || (obs.atCommitRange && obs.patrolContended);
             uint32 const waitMs =
                 uint32(DcSettings::GetFloat(bot, "PullPatrolWaitSec") * 1000.0f);
+            // Past the soft budget the guard keeps holding only while the patrol
+            // walks AT the pull, up to the hard cap — expiry must never commit the
+            // pull the moment he turns back toward it.
             bool const keepWaiting = DungeonClearMath::ShouldHoldForPatrol(
-                contended, pull.patrolWaitSince, getMSTime(), waitMs,
+                contended, obs.patrolNear && guard.closing, pull.patrolWaitSince,
+                getMSTime(), waitMs, waitMs * DungeonClearMath::PatrolHoldHardFactor,
                 pull.patrolWaitSince);
             obs.patrolWaitExpired = !keepWaiting;
         }
@@ -1104,11 +1109,20 @@ std::optional<Position> DcPullPlanner::ComputeSafeCamp(PlayerbotAI* botAI, Unit*
         others.push_back(u);
     }
 
-    auto clearanceAt = [&others](Position const& p) -> float
+    // A PATROLLING room boss (Lucifron) is in `others` where he stands now, but
+    // the camp fight outlasts his loop: keep the same clearance from his whole
+    // route, or the camp lands 40yd from him on the leg he walks next. Empty
+    // (no-op) unless a room-clear is active for a boss that walks a DB path.
+    std::vector<G3D::Vector3> const bossRoute = DcTargeting::ActiveRoomPatrolRoute(bot, ctx);
+
+    auto clearanceAt = [&others, &bossRoute](Position const& p) -> float
     {
         float nearest = std::numeric_limits<float>::max();
         for (Unit* u : others)
             nearest = std::min(nearest, p.GetExactDist2d(u));
+        if (!bossRoute.empty())
+            nearest = std::min(nearest, DungeonClearMath::DistToClosedRoute2D(
+                                            p.GetPositionX(), p.GetPositionY(), bossRoute));
         return nearest;
     };
 
@@ -1339,6 +1353,13 @@ std::optional<DcPullPlanner::RoomClearLane> DcPullPlanner::ComputeRoomClearLane(
 
     std::vector<DungeonClearMath::LaneKeepAway> keepAways;
     keepAways.push_back({boss->GetPositionX(), boss->GetPositionY(), bossRadius});
+    // A patrolling boss (Lucifron): the CAMP keeps the same radius from his whole
+    // route, not just from where he stands while the lane is measured — the lane is
+    // cached per pack and the fight at its camp outlasts his loop. Only the camp:
+    // the stand spot and the drag are seconds long and the patrol guard times them,
+    // and a hound pack 9yd off his route has no stand spot 40yd from it anyway.
+    std::vector<G3D::Vector3> const bossRoute =
+        DcEngageGeometry::PatrolRouteOf(boss->ToCreature());
 
     GuidVector const& farTargets = ctx->GetValue<GuidVector>(DcKey::FarTargets)->Get();
     GuidVector const& possibleTargets =
@@ -1384,6 +1405,13 @@ std::optional<DcPullPlanner::RoomClearLane> DcPullPlanner::ComputeRoomClearLane(
         // Skipped, not a stop: the ranking charges for the walk, so a clean lane
         // can sit behind an unclean one that is merely closer.
         if (requireClean && lane.margin < 0.0f)
+            continue;
+        // Pure arithmetic, so it does not spend the path-validation budget. No
+        // last-resort exemption: a lane whose camp sits on the patrol is not taken
+        // at all, and the pull falls back to ComputeSafeCamp, which keeps the same
+        // route clearance with its own fallbacks.
+        if (!bossRoute.empty() &&
+            DungeonClearMath::DistToClosedRoute2D(lane.campX, lane.campY, bossRoute) < bossRadius)
             continue;
         if (tried++ >= kMaxValidated)
             break;
