@@ -6,6 +6,7 @@
 #include "Ai/Dungeon/DungeonClear/Data/DungeonClearRouteRegistry.h"
 #include "Ai/Dungeon/DungeonClear/Data/Events/DungeonEventTables.h"
 #include "Ai/Dungeon/DungeonClear/Data/Events/DungeonRosterBuilders.h"
+#include "Ai/Dungeon/DungeonClear/Settings/DcSettings.h"
 #include "Ai/Dungeon/DungeonClear/Util/DcLeaderSignal.h"
 #include "Ai/Dungeon/DungeonClear/Util/DcRaidMusterDecision.h"
 #include "Ai/Dungeon/DungeonClear/Util/DcRun.h"
@@ -217,6 +218,9 @@ namespace
     bool SuppressionTransitDue(Player* bot, AiObjectContext* /*context*/)
     {
         if (!bot || bot->GetMapId() != MAP_ID)
+            return false;
+
+        if (!DcSettings::GetBool(bot, "SuppressionTransit"))
             return false;
 
         if (!DcBlackwingLair::InTransitCorridor(bot))
