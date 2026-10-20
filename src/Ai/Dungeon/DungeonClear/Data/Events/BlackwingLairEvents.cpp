@@ -222,7 +222,7 @@ namespace
         if (!DcBlackwingLair::InTransitCorridor(bot))
             return false;
 
-        if (bot->GetExactDist(TRANSIT_END_X, TRANSIT_END_Y, TRANSIT_END_Z) <= TRANSIT_END_RADIUS)
+        if (PastTransitStandoff(bot->GetPositionX(), bot->GetPositionY(), bot->GetPositionZ()))
             return false;
 
         InstanceScript* inst = bot->GetInstanceScript();
@@ -860,8 +860,8 @@ void RegisterBlackwingLairRoster(std::vector<BossRosterPatch>& t)
 //          Nothing crosses a suppression room here; this is the ordinary walk the
 //          clear has always made, and it is authored for one reason only — see
 //          below.
-//   20-39  THE CROSSING. The staging point (anchor TRANSIT_STAGE_ANCHOR_INDEX) to
-//          the Broodlord standoff, 342.6yd across the two suppression rooms. This
+//   20-36  THE CROSSING. The staging point (anchor TRANSIT_STAGE_ANCHOR_INDEX) to
+//          the safe Broodlord staging point across the two suppression rooms. This
 //          is the transit's CURSOR TRACK, and BwlTransitRoute hands the driver
 //          exactly this half so its anchor 0 is still staging.
 //
@@ -1021,9 +1021,6 @@ void RegisterBlackwingLairRoute()
             // --- the upper room, northeast to Broodlord ---
             { -7669.63f, -1080.17f, 449.71f },
             { -7651.64f, -1071.41f, 449.71f },
-            { -7633.66f, -1062.65f, 449.85f },
-            { -7612.09f, -1052.15f, 449.85f },
-            { -7590.51f, -1041.64f, 449.85f },
             { TRANSIT_END_X, TRANSIT_END_Y, TRANSIT_END_Z },
         });
 }

@@ -1687,3 +1687,19 @@ TEST(DcBlackwingLairDeathTalonTest, TheEastCampIsInsideTheNoStopCapsule)
     EXPECT_TRUE(DcNoStopZone::CoversPoint(*route, east.campX, east.campY, east.campZ,
                                           DC_NO_STOP_CORRIDOR));
 }
+
+TEST(DungeonEventBlackwingLairTest, TransitStopsBeforeBroodlordAndDoesNotRearmOnApproach)
+{
+    using namespace DcBlackwingLair;
+    constexpr float bossX = -7573.97f, bossY = -1034.39f;
+    float const dx = TRANSIT_END_X - bossX, dy = TRANSIT_END_Y - bossY;
+    // Conservative 25yd aggro allowance, arrival tolerance and 20yd raid spread.
+    EXPECT_GT(std::sqrt(dx * dx + dy * dy), 25.0f + TRANSIT_END_RADIUS + 20.0f);
+    EXPECT_FALSE(PastTransitStandoff(-7651.64f, -1071.41f, TRANSIT_END_Z));
+    EXPECT_TRUE(PastTransitStandoff(TRANSIT_END_X, TRANSIT_END_Y, TRANSIT_END_Z));
+    EXPECT_TRUE(PastTransitStandoff(-7612.09f, -1052.15f, TRANSIT_END_Z));
+    EXPECT_TRUE(PastTransitStandoff(-7590.51f, -1041.64f, TRANSIT_END_Z));
+    EXPECT_TRUE(PastTransitStandoff(bossX, bossY, TRANSIT_END_Z));
+    EXPECT_FALSE(PastTransitStandoff(-7624.62f, -907.86f, 438.58f));
+    EXPECT_FALSE(PastTransitStandoff(TRANSIT_STAGE_X, TRANSIT_STAGE_Y, TRANSIT_STAGE_Z));
+}
