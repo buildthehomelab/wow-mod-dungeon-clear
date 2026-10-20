@@ -2007,31 +2007,25 @@ namespace DcBlackwingLair
     // wrong half of the route.
     constexpr std::size_t TRANSIT_STAGE_ANCHOR_INDEX = 20;
 
-    // THE BROODLORD STANDOFF — where the transit ends and the ordinary raid
-    // pipeline (muster, standoff, engage) takes back over. Nearest whelp 27.5yd,
-    // nearest device 21.7yd; clean ground, on the upper room's floor.
-    //
-    // It is also 0.9yd from Broodlord's own spawn (guid 84387, -7573.97, -1034.39),
-    // so arriving here IS the boss pull — with whatever the crossing is still
-    // towing. Live (2026-10-17 13:23): the raid walked in with Hatchers, Taskmasters,
-    // a Technician pack and whelps on it, Broodlord joined two seconds later, 41
-    // deaths. The crossing therefore holds at TRANSIT_ENGAGED_HOLD_LEGS anchors out
-    // until nothing but whelps is fighting the raid (DcSuppressionTransit::
-    // Hold::Engaged); anchor 37, where that hold lands, is 42.1yd from him.
-    constexpr float TRANSIT_END_X = -7573.8f;
-    constexpr float TRANSIT_END_Y = -1033.5f;
-    constexpr float TRANSIT_END_Z = 449.3f;
-
-    // The last two legs (anchor 37 -> 38 -> the standoff) are the ones that walk
-    // into Broodlord's reach: anchor 38 is 18.1yd from him.
+    // End on certified upper-room ground about 66yd from Broodlord's spawn.
+    // The former endpoint was on his spawn and body-pulled him before the normal
+    // muster/standoff/engage pipeline could check the raid. Leave room for the
+    // 10yd arrival tolerance and followers spread around the tank.
+    constexpr float TRANSIT_END_X = -7633.66f;
+    constexpr float TRANSIT_END_Y = -1062.65f;
+    constexpr float TRANSIT_END_Z = 449.85f;
+    constexpr float TRANSIT_END_RADIUS = 10.0f;
     constexpr uint32 TRANSIT_ENGAGED_HOLD_LEGS = 2;
 
-    // How close the leader has to get before the transit is over. Also the
-    // predicate's own OFF switch: the event is due while the leader is inside the
-    // corridor and NOT yet here, so arriving simply stops it being due. There is
-    // no completion latch to reset — a leader shoved back into the gauntlet
-    // re-arms it, which is the correct answer.
-    constexpr float TRANSIT_END_RADIUS = 10.0f;
+    // A completion PLANE, rather than a radius: once the ordinary boss approach
+    // walks beyond staging it must not re-arm this repeatable transit and pull
+    // the tank back. The unit vector follows the final upper-room route leg.
+    constexpr bool PastTransitStandoff(float x, float y, float z)
+    {
+        return z >= TRANSIT_END_Z - 3.0f &&
+               (x - TRANSIT_END_X) * 0.8991f +
+               (y - TRANSIT_END_Y) * 0.4378f >= -TRANSIT_END_RADIUS;
+    }
 
     // THE CORRIDOR — the axis-aligned box that is the two suppression rooms plus
     // the approach and NOTHING else on the map. The transit's activation
