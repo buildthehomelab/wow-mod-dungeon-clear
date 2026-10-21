@@ -399,9 +399,8 @@ constexpr float DC_Z_LEVEL_TOLERANCE = 5.0f;
 
 // On a raid map, a patrolling boss whose loop passes this close to a pulled pack
 // (2D, on its floor; plus the camp's drag) keeps the camp clear of its whole route
-// (DcTargeting::BossPatrolRoutesNear): Baron Geddon walks a ~554yd loop in 3-4
-// minutes, and a trash fight held near any leg of it collects him when he comes
-// round.
+// (DcTargeting::BossPatrolRoutesNear): Baron Geddon runs a ~554yd loop in ~35s,
+// and a trash fight held near any leg of it collects him when he comes round.
 constexpr float DC_BOSS_PATROL_CAMP_RANGE = 100.0f;
 
 // Vertical half-band for matching a trash candidate to a leg of the corridor in

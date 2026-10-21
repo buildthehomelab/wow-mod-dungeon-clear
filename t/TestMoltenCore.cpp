@@ -3,8 +3,11 @@
  * and/or modify it under version 3 of the License, or (at your option), any later version.
  */
 
+#include <cmath>
+
 #include "gtest/gtest.h"
 
+#include "Ai/Dungeon/DungeonClear/Data/BossAmbushRegistry.h"
 #include "Ai/Dungeon/DungeonClear/Data/DungeonEventRegistry.h"
 #include "Ai/Dungeon/DungeonClear/Overrides/BossRosterRegistry.h"
 #include "Ai/Dungeon/DungeonClear/Overrides/ObjectiveHookRegistry.h"
@@ -99,4 +102,31 @@ TEST(DcMoltenCoreTest, SummonRagnarosEventShape)
     EXPECT_TRUE(wait.wantAlive);
     // Must outlast the ~48s scripted intro.
     EXPECT_GE(wait.timeoutMs, 60000u);
+}
+
+// Baron Geddon runs his loop (path 566550, move_type 1, ~35s a lap), so the raid
+// waits for him on it instead of chasing him. The spot is on the node 17 -> node 1
+// leg at the top of his ramp, 234yd from Shazzrah (whom the loop passes 8.8yd off),
+// on another floor from Golemagg.
+TEST(DcMoltenCoreTest, GeddonIsAmbushedAtTheTopOfHisRamp)
+{
+    BossAmbush const* a = BossAmbushRegistry::Find(kMap, 12056);
+    ASSERT_NE(a, nullptr);
+    // On the leg: within a yard of the line node 17 (746.603,-966.558) -> node 1
+    // (747.547,-981.676).
+    float const dx = 747.547f - 746.603f, dy = -981.676f - -966.558f;
+    float const t = ((a->x - 746.603f) * dx + (a->y - -966.558f) * dy) / (dx * dx + dy * dy);
+    EXPECT_GT(t, 0.0f);
+    EXPECT_LT(t, 1.0f);
+    EXPECT_LT(std::hypot(746.603f + t * dx - a->x, -966.558f + t * dy - a->y), 1.0f);
+    EXPECT_GT(std::hypot(a->x - 587.303f, a->y - -801.975f), 200.0f);   // Shazzrah
+    EXPECT_GT(std::fabs(a->z - -206.762f), 20.0f);                       // Golemagg's floor
+    // Waits a lap and some, never forever.
+    EXPECT_GE(a->maxWaitMs, 35000u);
+    EXPECT_LE(a->maxWaitMs, 120000u);
+    EXPECT_GT(a->arriveRadius, 0.0f);
+
+    // Nobody else in Molten Core is ambushed; Lucifron and Shazzrah walk.
+    EXPECT_EQ(BossAmbushRegistry::Find(kMap, 12118), nullptr);
+    EXPECT_EQ(BossAmbushRegistry::Find(kMap, 12264), nullptr);
 }

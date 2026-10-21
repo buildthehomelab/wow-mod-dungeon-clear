@@ -399,7 +399,7 @@ public:
 
     // A PATROLLING boss (IsPatrolMoverNow) standing within another living, idle,
     // hostile boss's aggro reach + PullEnRouteMargin + PullPatrolBuffer, on his
-    // floor and in sight of him: Baron Geddon's loop passes 9yd from Shazzrah.
+    // floor and in sight of him: Baron Geddon's loop passes 8.8yd from Shazzrah.
     // Chasing him there walks the raid into Shazzrah, and pulling him there brings
     // Shazzrah. `other` is the first such boss (nullptr = none); `closing` is true
     // unless the patrolling boss is walking away from every one of them. Walking

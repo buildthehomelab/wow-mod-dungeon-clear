@@ -230,6 +230,14 @@ struct DcApproachState
     // (DcEngageGeometry::PatrollingBossNearOtherBoss): same contract, own latch.
     uint32     bossApproachWaitSince = 0;
     ObjectGuid bossApproachWaitGuid;
+    // Ambush boss (BossAmbushRegistry, DungeonClearAdvanceAction::TryAmbushHold):
+    // the boss the clock below belongs to, when the party first stood at the spot
+    // (0 = not yet), and whether the wait ran out (then he is approached the
+    // ordinary way). All three reset when he is seen in combat, so a re-pull after
+    // a wipe ambushes him again.
+    ObjectGuid ambushGuid;
+    uint32     ambushSinceMs = 0;
+    bool       ambushGaveUp  = false;
 
     // Mid-glide hazard probe (Advance). While a continuous escort spline is in
     // flight the hop ladder short-circuits (the ride outranks everything), so a
@@ -416,6 +424,9 @@ struct DcApproachState
         bossPatrolCommitMs  = 0;
         bossApproachWaitSince = 0;
         bossApproachWaitGuid.Clear();
+        ambushGuid.Clear();
+        ambushSinceMs       = 0;
+        ambushGaveUp        = false;
         glideHazardProbeMs  = 0;
         glideHazardIgnore.Clear();
         doorStallGuid.Clear();

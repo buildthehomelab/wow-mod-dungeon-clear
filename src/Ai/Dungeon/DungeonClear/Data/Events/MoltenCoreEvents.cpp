@@ -152,15 +152,16 @@ void RegisterMoltenCoreRoster(std::vector<BossRosterPatch>& t)
 
     // The eight statics keep their derived DBC order (bits 0-7 match the
     // classic clear path) but for one swap: Baron Geddon (bit 5) before
-    // Shazzrah (bit 4). Geddon walks a ~554yd loop (path 566550) from the top
-    // of his ramp down past Shazzrah, 9yd from his spawn, and back, ~220s at
-    // walk. Shazzrah first meant the raid waiting at Shazzrah, and fighting
-    // him, on that loop: Geddon walked into the Shazzrah pull. Geddon first
-    // means he is fought where the raid catches him, mostly on his ramp — while
-    // he stands by Shazzrah the raid neither chases nor pulls him
-    // (DcEngageGeometry::PatrollingBossNearOtherBoss, the advance hold and the
-    // boss engage's patrol guard) — and Shazzrah after him has nobody walking
-    // in. Their kill bits are untouched; only the clear order key moves.
+    // Shazzrah (bit 4). Geddon RUNS a ~554yd loop (path 566550, move_type 1 on
+    // every node, ~16yd/s, ~35s a lap) from the top of his ramp down past
+    // Shazzrah, 8.8yd from his spawn, and back. Shazzrah first meant the raid
+    // waiting at Shazzrah, and fighting him, on that loop: Geddon came into the
+    // Shazzrah pull. Geddon first means he is fought at the top of his ramp,
+    // 234yd from Shazzrah: he cannot be chased, so the raid waits for him on his
+    // loop (BossAmbushRegistry) — and while he is by Shazzrah it neither chases
+    // nor pulls him (DcEngageGeometry::PatrollingBossNearOtherBoss) — and
+    // Shazzrah after him has nobody running in. Their kill bits are untouched;
+    // only the clear order key moves.
     p.reorder = {
         { kGeddon,   4 },
         { kShazzrah, 5 },

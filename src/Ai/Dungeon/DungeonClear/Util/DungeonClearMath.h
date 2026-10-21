@@ -503,7 +503,7 @@ namespace DungeonClearMath
     // formation is never the hounds' — those stay threats.
     //
     // A BOSS (`candIsBoss`) is a packmate by formation only (Garr's Firesworn,
-    // Lucifron's Protectors): Baron Geddon walking within 12yd of a pack is the
+    // Lucifron's Protectors): Baron Geddon running within 12yd of a pack is the
     // threat, not part of it. A creature_linked_respawn partner counts only when it
     // does not move on its own (`candMoves`, IsPatrolMover) and stands within
     // `packRadius`. creature_linked_respawn is a RESPAWN dependency: Molten Core

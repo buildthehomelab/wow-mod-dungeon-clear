@@ -862,7 +862,7 @@ DcEngageGeometry::PatrolThreat DcEngageGeometry::PatrolThreatNear(Player* bot,
                        (!camp || DungeonClearMath::IsReceding(toCamp, camp->GetExactDist2d(&destPos)));
         }
         // ...and the target not walking at IT. A patrolling target (Baron Geddon
-        // walking his loop down onto Shazzrah's) closes the gap as surely as the
+        // running his loop down onto Shazzrah's) closes the gap as surely as the
         // patrol walking at the target does.
         if (receding && target->isMoving() && target->movespline &&
             !target->movespline->Finalized())

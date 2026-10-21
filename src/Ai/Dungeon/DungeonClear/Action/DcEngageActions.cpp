@@ -1086,7 +1086,7 @@ bool DungeonClearEngageBossAction::Execute(Event event)
     // raid waits holds it too; same ShouldHoldForPatrol budget, so a patrol that
     // never leaves is pulled with after twice PullPatrolWaitSec. A patrolling boss
     // (Geddon, Lucifron) is never his own threat, nor is his formation — but he IS
-    // held while he stands by another boss (Geddon's loop passes 9yd from Shazzrah;
+    // held while he stands by another boss (Geddon's loop passes 8.8yd from Shazzrah;
     // DcEngageGeometry::PatrollingBossNearOtherBoss). Never mid-fight, and never once
     // the walk-in has been let go (DcApproachState::bossPatrolCommit*).
     {
