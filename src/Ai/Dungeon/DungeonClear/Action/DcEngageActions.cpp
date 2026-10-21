@@ -2378,6 +2378,11 @@ bool DcRunEventAction::Execute(Event /*event*/)
     if (!ev->stepsOwnMovement)
         DcMovement::ResolveEscortConflict(bot);
 
+    uint32 const stepIndex = prog.eventId == ev->id ? prog.stepIndex : 0;
+    bool const mustering = stepIndex < ev->steps.size() &&
+        ev->steps[stepIndex].kind == EventStepKind::Custom &&
+        ev->steps[stepIndex].hookId == DC_HOOK_RAID_MUSTER;
+
     EventDriveOutcome const outcome = DungeonEventExecutor::Drive(bot, context, *ev, prog);
 
     char const* outcomeStr =
@@ -2397,6 +2402,13 @@ bool DcRunEventAction::Execute(Event /*event*/)
         // while a conditional event runs correctly.
         ClearStall(context);
         SetPhase(context, "event");
+        // Drive the muster clock before yielding so rest cannot suspend its timeout.
+        if (mustering)
+        {
+            if (EventRestDecision() != EventRest::None)
+                DcMovement::StopBot(bot, DcMovement::Stop::Hold);
+            return false;  // allow eating, drinking and the leader's rebuff actions
+        }
         return true;
     }
 
@@ -2446,6 +2458,11 @@ bool DcRunEventAction::Execute(Event /*event*/)
         // force-pull — stay responsive; it just stops CLAIMING ticks it does not
         // need. Ordinary repeatable events keep the old own-the-tick behaviour.
         bool const yieldTick = ev->stepsOwnMovement;
+
+        // A repeated summon after a wipe needs a fresh readiness check.
+        if (std::any_of(ev->steps.begin(), ev->steps.end(), [](EventStep const& step)
+            { return step.kind == EventStepKind::Custom && step.hookId == DC_HOOK_RAID_MUSTER; }))
+            DcRun::Of(context).musterBossEntry = 0;
 
         prog.stepIndex = 0;
         prog.attempts = 0;
