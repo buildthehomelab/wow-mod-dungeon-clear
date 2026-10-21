@@ -1558,6 +1558,26 @@ TEST(DungeonClearPatrolGuardTest, DistanceToAClosedPatrolRoute)
     EXPECT_NEAR(DistToClosedRoute2D(3.0f, 4.0f, {{0, 0, 0}}), 5.0f, 1e-4f);
 }
 
+// A boss loop on the camp's floor binds; the same loop on a ledge overhead doesn't.
+TEST(DungeonClearPatrolGuardTest, DistanceToAPatrolRouteOnTheSameFloor)
+{
+    using DungeonClearMath::DistToClosedRouteOnFloor2D;
+    // A square loop at z 0, 100yd on a side.
+    std::vector<G3D::Vector3> const loop{{0, 0, 0}, {100, 0, 0}, {100, 100, 0}, {0, 100, 0}};
+    EXPECT_NEAR(DistToClosedRouteOnFloor2D(50.0f, 20.0f, 1.0f, loop, 5.0f), 20.0f, 1e-3f);
+    // 12yd below every leg: no leg on its floor.
+    EXPECT_EQ(DistToClosedRouteOnFloor2D(50.0f, 20.0f, -12.0f, loop, 5.0f),
+              std::numeric_limits<float>::max());
+    // A ramp leg: z interpolated where the leg comes closest. (50, -10) is closest to
+    // (50, 0), halfway up a leg from z 0 to z 20, so at z 10.
+    std::vector<G3D::Vector3> const ramp{{0, 0, 0}, {100, 0, 20}, {100, 100, 20}, {0, 100, 0}};
+    EXPECT_NEAR(DistToClosedRouteOnFloor2D(50.0f, -10.0f, 10.0f, ramp, 5.0f), 10.0f, 1e-3f);
+    // From z 0 that point of the ramp is 10yd up, but the foot of the ramp (up to z 5,
+    // x <= 25) is on its floor: (25, 0) is 26.9yd away.
+    EXPECT_NEAR(DistToClosedRouteOnFloor2D(50.0f, -10.0f, 0.0f, ramp, 5.0f), 26.93f, 0.01f);
+    EXPECT_EQ(DistToClosedRouteOnFloor2D(0.0f, 0.0f, 0.0f, {}, 5.0f), std::numeric_limits<float>::max());
+}
+
 // --- ShouldHandoffFizzledPull (advanced-pull engage-fizzle latch) ----------
 using DungeonClearMath::ShouldHandoffFizzledPull;
 
