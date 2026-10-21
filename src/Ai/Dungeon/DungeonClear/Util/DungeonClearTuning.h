@@ -387,9 +387,8 @@ constexpr float DC_Z_LEVEL_TOLERANCE = 5.0f;
 // (2D, on its floor; plus the camp's drag) keeps the camp clear of its whole route
 // (DcTargeting::BossPatrolRoutesNear): Baron Geddon walks a ~554yd loop in 3-4
 // minutes, and a trash fight held near any leg of it collects him when he comes
-// round. With such a route near, the camp may be dragged up to this far back.
+// round.
 constexpr float DC_BOSS_PATROL_CAMP_RANGE = 100.0f;
-constexpr float DC_BOSS_PATROL_MAX_DRAG = 60.0f;
 
 // Vertical half-band for matching a trash candidate to a leg of the corridor in
 // the blocking-trash scans. The corridor band test is otherwise 2D, so a mob at

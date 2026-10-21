@@ -1375,9 +1375,10 @@ namespace
             uint32 ms = 0;
             std::vector<PatrolBoss> bosses;
         };
-        thread_local std::unordered_map<uint32, Cached> tCache;
+        // By map and instance: a freed instance id is handed out again.
+        thread_local std::unordered_map<uint64, Cached> tCache;
         uint32 const now = getMSTime();
-        Cached& cached = tCache[map->GetInstanceId()];
+        Cached& cached = tCache[(uint64(map->GetId()) << 32) | map->GetInstanceId()];
         if (cached.ms && getMSTimeDiff(cached.ms, now) < kPatrolBossesFreshMs)
             return cached.bosses;
         cached.ms = now ? now : 1;

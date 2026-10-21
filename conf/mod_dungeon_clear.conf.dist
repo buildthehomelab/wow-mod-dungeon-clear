@@ -893,8 +893,9 @@ DungeonClear.PullSetback = 25.0
 #        In a raid the camp keeps the same clearance from the whole route of any
 #        patrolling boss, not yet fighting, whose loop passes within 100 yards of
 #        the pack (plus the drag) on its floor (Molten Core: Baron Geddon's
-#        ~554-yard loop), dragging up to 60 yards back for it: the fight at camp
-#        lasts long enough for him to come round.
+#        ~554-yard loop): the fight at camp lasts long enough for him to come
+#        round. A pack on the route itself, with no clear point within
+#        PullMaxDrag, still relies on PullPatrolGuard's timing.
 #
 #        Default: 25.0
 #

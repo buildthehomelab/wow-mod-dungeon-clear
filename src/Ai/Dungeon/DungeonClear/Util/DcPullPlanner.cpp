@@ -1118,13 +1118,12 @@ std::optional<Position> DcPullPlanner::ComputeSafeCamp(PlayerbotAI* botAI, Unit*
     // same, whether or not his room is the one being cleared. Measured on the camp's
     // floor, so a loop on a ledge overhead doesn't push the camp back.
     // The camp can end up maxDrag from the pack, so the routes are collected that
-    // much further out; with one near, the drag may go further to clear it (a pack
-    // beside his ramp: the 35yd default never leaves the leg the tank came up).
-    float const patrolDrag = std::max(maxDrag, DC_BOSS_PATROL_MAX_DRAG);
+    // much further out. The drag itself is not widened for them: the patrol guard
+    // and the party-ready spread are sized to it. A pack on the route itself, with
+    // the tank's trail along it, finds no clear crumb and takes the farthest one;
+    // that pull still rests on the patrol guard's timing.
     std::vector<std::vector<G3D::Vector3>> const patrolRoutes = DcTargeting::BossPatrolRoutesNear(
-        bot, ctx, target->GetPosition(), DC_BOSS_PATROL_CAMP_RANGE + patrolDrag, target);
-    if (!patrolRoutes.empty())
-        maxDrag = patrolDrag;
+        bot, ctx, target->GetPosition(), DC_BOSS_PATROL_CAMP_RANGE + maxDrag, target);
 
     auto clearanceAt = [&others, &bossRoute, &patrolRoutes](Position const& p) -> float
     {
@@ -1432,6 +1431,19 @@ std::optional<DcPullPlanner::RoomClearLane> DcPullPlanner::ComputeRoomClearLane(
         if (!bossRoute.empty() &&
             DungeonClearMath::DistToClosedRoute2D(lane.campX, lane.campY, bossRoute) < bossRadius)
             continue;
+        // The camp snapped first (cheap), so a lane on another boss's route doesn't
+        // spend the path-validation budget; on the camp's own floor.
+        std::optional<Position> camp = snapOnFloor(lane.campX, lane.campY);
+        if (!camp)
+            continue;
+        if (std::any_of(patrolRoutes.begin(), patrolRoutes.end(),
+                        [&](std::vector<G3D::Vector3> const& route)
+                        {
+                            return DungeonClearMath::DistToClosedRouteOnFloor2D(
+                                       camp->GetPositionX(), camp->GetPositionY(),
+                                       camp->GetPositionZ(), route, DC_Z_LEVEL_TOLERANCE) < safeRadius;
+                        }))
+            continue;
         if (tried++ >= kMaxValidated)
             break;
         std::optional<Position> stand = snapOnFloor(lane.standX, lane.standY);
@@ -1441,20 +1453,8 @@ std::optional<DcPullPlanner::RoomClearLane> DcPullPlanner::ComputeRoomClearLane(
                                  stand->GetPositionZ() + 2.0f,
                                  VMAP::ModelIgnoreFlags::Nothing, LINEOFSIGHT_CHECK_VMAP))
             continue;
-        std::optional<Position> camp = snapOnFloor(lane.campX, lane.campY);
-        if (!camp)
-            continue;
         if (box && !RoomAggroRegistry::InCampBox(*box, camp->GetPositionX(),
                                                  camp->GetPositionY()))
-            continue;
-        // On the camp's own floor, so measured once it is snapped.
-        if (std::any_of(patrolRoutes.begin(), patrolRoutes.end(),
-                        [&](std::vector<G3D::Vector3> const& route)
-                        {
-                            return DungeonClearMath::DistToClosedRouteOnFloor2D(
-                                       camp->GetPositionX(), camp->GetPositionY(),
-                                       camp->GetPositionZ(), route, DC_Z_LEVEL_TOLERANCE) < safeRadius;
-                        }))
             continue;
         if (CampOverZoneLine(bot, *camp) || !IsNavReachable(bot, *camp) ||
             CampBlockedByDoor(bot, *camp) || CampInHazard(bot, live, *camp))
