@@ -439,6 +439,17 @@ bool DcPullPlanner::ClassifyPullAdvanced(PlayerbotAI* botAI, Unit* target,
     // Stage 2: linked respawn (secondary). Only bridges two candidates when at
     // least one carries no formation pack yet, and never overwrites an existing
     // formation pack — formations stay authoritative.
+    //
+    // INERT AS WRITTEN, and must not simply be "fixed". creature_linked_respawn
+    // is keyed by the spawn's DB guid, ObjectGuid::Create<HighGuid::Unit>(entry,
+    // spawnId) (ObjectMgr::LoadLinkedRespawn), while c->GetGUID() is the live
+    // guid the map generated, so the lookup below never finds a row and this
+    // stage has never bridged anything (DcEngageGeometry's patrol packmate check
+    // builds the DB guid correctly). A corrected lookup must also skip links
+    // whose master is a boss: in Molten Core every link is trash -> boss (47
+    // Flame Imps to Lucifron, 30 trash to Baron Geddon, 52 to Magmadar, ...), so
+    // a plain DB-guid lookup would make each boss and all its linked trash one
+    // pack. With the boss links skipped, Molten Core has no link left at all.
     for (std::size_t i = 0; i < hostiles.size(); ++i)
     {
         Creature* c = hostiles[i]->ToCreature();
