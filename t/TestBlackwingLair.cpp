@@ -7,6 +7,7 @@
 
 #include <algorithm>
 #include <cmath>
+#include <iterator>
 #include <vector>
 
 #include "Position.h"
@@ -1612,7 +1613,10 @@ namespace
 
 TEST(DcBlackwingLairDeathTalonTest, BothPacksArePlannedBeforeBroodlord)
 {
-    std::vector<ScriptedPullStage const*> const rows = ScriptedPullRegistry::Rows(MAP_ID);
+    std::vector<ScriptedPullStage const*> rows = ScriptedPullRegistry::Rows(MAP_ID);
+    rows.erase(std::remove_if(rows.begin(), rows.end(),
+                              [](ScriptedPullStage const* s) { return s->bossEntry != NPC_BROODLORD_LASHLAYER; }),
+               rows.end());
     ASSERT_EQ(rows.size(), 2u);
     EXPECT_EQ(rows[0]->order, 0u);  // east first: the west row camps on its floor
     EXPECT_EQ(rows[1]->order, 1u);
@@ -1686,6 +1690,219 @@ TEST(DcBlackwingLairDeathTalonTest, TheEastCampIsInsideTheNoStopCapsule)
     ScriptedPullStage const& east = DtRow(0);
     EXPECT_TRUE(DcNoStopZone::CoversPoint(*route, east.campX, east.campY, east.campZ,
                                           DC_NO_STOP_CORRIDOR));
+}
+
+// --- the Technician halls, Broodlord to Ebonroc (ScriptedPullRegistry rows 2-9) ----
+//
+// 10/21: packs fought in place in Firemaw's patrol path brought Firemaw and the next
+// pack in; after him the 465 tier's three packs came as one (30 Technicians, 9
+// Felguards). Every pack is now dragged to a camp away from the path and the others.
+// The geometry below is acore_world.creature + waypoint_data on map 469.
+namespace
+{
+    // Formation 84542: every member.
+    Spawn const kHallDoorPack[] = {
+        {-7546.6f, -1013.3f, 449.3f}, {-7547.5f, -1025.8f, 449.4f}, {-7547.7f, -1015.0f, 449.3f},
+        {-7549.5f, -1021.8f, 449.4f}, {-7550.2f, -1039.0f, 449.3f}, {-7550.8f, -1014.5f, 449.3f},
+        {-7551.4f, -1040.7f, 449.3f}, {-7552.2f, -1017.3f, 449.4f},
+    };
+    // Formation 84557: every member, and its Overseer's two waypoints.
+    Spawn const kHallSouthPack[] = {
+        {-7491.5f, -1037.4f, 449.3f}, {-7496.7f, -1038.1f, 449.2f}, {-7496.7f, -1040.8f, 449.3f},
+        {-7504.5f, -1043.6f, 449.3f}, {-7506.4f, -1043.0f, 449.4f}, {-7508.8f, -1046.5f, 449.3f},
+        {-7510.6f, -1049.6f, 449.3f}, {-7513.0f, -1051.5f, 449.3f}, {-7514.5f, -1054.3f, 449.3f},
+        {-7515.3f, -1056.8f, 449.4f}, {-7517.9f, -1056.9f, 449.3f}, {-7521.1f, -1058.8f, 449.3f},
+        {-7523.3f, -1060.8f, 449.3f}, {-7524.0f, -1060.0f, 449.4f}, {-7496.7f, -1038.1f, 449.2f},
+        {-7525.4f, -1059.2f, 449.2f},
+    };
+    // Formation 84558: every member, and its Overseer's two waypoints.
+    Spawn const kHallNorthPack[] = {
+        {-7515.7f, -960.1f, 449.3f}, {-7518.6f, -967.0f, 449.4f}, {-7519.8f, -962.5f, 449.3f},
+        {-7523.2f, -964.2f, 449.3f}, {-7527.0f, -967.0f, 449.3f}, {-7527.9f, -979.7f, 449.2f},
+        {-7530.2f, -969.4f, 449.3f}, {-7533.2f, -982.8f, 449.4f}, {-7533.7f, -972.0f, 449.3f},
+        {-7535.7f, -987.5f, 449.3f}, {-7538.6f, -983.2f, 449.4f}, {-7541.6f, -977.0f, 449.3f},
+        {-7542.0f, -981.6f, 449.3f}, {-7543.8f, -979.3f, 449.3f}, {-7530.5f, -991.2f, 449.2f},
+        {-7513.2f, -978.9f, 449.2f},
+    };
+    // Formation 84592: every member.
+    Spawn const kHallWyrmguardPack[] = {
+        {-7447.5f, -996.3f, 449.8f}, {-7454.2f, -986.2f, 449.9f}, {-7456.2f, -999.9f, 449.9f},
+        {-7462.8f, -984.9f, 449.9f}, {-7463.6f, -993.2f, 449.9f},
+    };
+    // Formation 84625: every member, and its Overseer's two waypoints.
+    Spawn const kLandingPack[] = {
+        {-7499.4f, -908.3f, 458.0f}, {-7502.2f, -914.3f, 458.0f}, {-7506.4f, -904.1f, 457.7f},
+        {-7509.2f, -906.5f, 457.7f}, {-7514.6f, -936.9f, 457.7f}, {-7515.6f, -910.7f, 457.6f},
+        {-7518.1f, -933.8f, 457.7f}, {-7518.6f, -925.0f, 457.8f}, {-7519.6f, -932.1f, 457.7f},
+        {-7523.4f, -929.5f, 457.7f}, {-7524.2f, -916.8f, 457.7f}, {-7525.5f, -924.4f, 457.7f},
+        {-7526.4f, -921.5f, 457.7f}, {-7527.3f, -919.0f, 457.7f}, {-7494.8f, -914.7f, 457.9f},
+        {-7513.3f, -927.9f, 457.9f},
+    };
+    // Formation 85759: every member, and its Overseer's two waypoints.
+    Spawn const kTierMiddlePack[] = {
+        {-7433.4f, -956.2f, 465.2f}, {-7440.2f, -966.9f, 465.1f}, {-7440.3f, -970.5f, 465.1f},
+        {-7443.5f, -964.3f, 465.1f}, {-7447.0f, -945.1f, 465.0f}, {-7448.3f, -934.7f, 465.0f},
+        {-7449.5f, -930.5f, 465.2f}, {-7453.0f, -954.1f, 465.1f}, {-7456.6f, -950.9f, 465.1f},
+        {-7459.2f, -948.7f, 465.1f}, {-7460.6f, -946.6f, 465.1f}, {-7462.5f, -937.1f, 465.1f},
+        {-7464.9f, -930.5f, 465.1f}, {-7467.7f, -927.5f, 465.1f}, {-7433.4f, -946.7f, 465.0f},
+        {-7455.8f, -915.1f, 465.0f},
+    };
+    // Formation 84840: every member, and its Overseer's two waypoints.
+    Spawn const kTierNorthPack[] = {
+        {-7448.9f, -868.3f, 465.1f}, {-7451.6f, -870.5f, 465.2f}, {-7452.4f, -863.4f, 465.1f},
+        {-7453.6f, -860.5f, 465.1f}, {-7463.2f, -867.5f, 465.1f}, {-7463.5f, -874.5f, 465.2f},
+        {-7464.4f, -862.9f, 465.1f}, {-7471.8f, -871.9f, 465.1f}, {-7472.8f, -870.7f, 465.1f},
+        {-7476.9f, -878.2f, 465.0f}, {-7480.4f, -885.3f, 465.2f}, {-7484.7f, -886.1f, 465.1f},
+        {-7485.8f, -883.1f, 465.1f}, {-7488.1f, -880.6f, 465.1f}, {-7475.5f, -894.5f, 465.2f},
+        {-7452.9f, -878.0f, 465.2f},
+    };
+    // Formation 85756: every member, and its Overseer's two waypoints.
+    Spawn const kTierEastPack[] = {
+        {-7396.3f, -935.8f, 465.1f}, {-7396.8f, -933.0f, 465.1f}, {-7398.5f, -930.9f, 465.1f},
+        {-7401.1f, -918.5f, 465.1f}, {-7408.6f, -917.0f, 465.1f}, {-7409.3f, -927.0f, 465.2f},
+        {-7411.1f, -909.5f, 465.5f}, {-7411.4f, -911.4f, 465.1f}, {-7411.5f, -901.3f, 465.1f},
+        {-7414.1f, -897.4f, 465.1f}, {-7419.3f, -895.4f, 465.1f}, {-7419.6f, -913.1f, 465.0f},
+        {-7428.7f, -901.4f, 465.2f}, {-7412.5f, -930.7f, 465.0f}, {-7432.4f, -902.3f, 465.0f},
+    };
+
+    // Firemaw's waypoint path 845720, out and back.
+    Spawn const kFiremawPath[] = {
+        {-7534.6f, -1036.2f, 448.9f}, {-7494.4f, -1007.4f, 448.9f}, {-7466.3f, -987.3f, 449.7f},
+        {-7506.6f, -923.1f, 457.9f}, {-7459.0f, -889.9f, 465.2f}, {-7442.6f, -911.7f, 465.4f},
+    };
+
+    constexpr uint32 NPC_FIREMAW_ENTRY = 11983;
+    constexpr uint32 NPC_EBONROC_ENTRY = 14601;
+
+    struct HallPack
+    {
+        int32 order;
+        Spawn const* members;
+        std::size_t count;
+    };
+
+    template <std::size_t N>
+    HallPack Pack(int32 order, Spawn const (&members)[N])
+    {
+        return {order, members, N};
+    }
+
+    std::vector<HallPack> HallPacks()
+    {
+        return {Pack(2, kHallDoorPack),   Pack(3, kHallSouthPack),  Pack(4, kHallNorthPack),
+                Pack(5, kHallWyrmguardPack), Pack(6, kLandingPack), Pack(7, kTierMiddlePack),
+                Pack(8, kTierNorthPack),  Pack(9, kTierEastPack)};
+    }
+
+    float NearestOf(float x, float y, HallPack const& pack)
+    {
+        float best = 1e9f;
+        for (std::size_t i = 0; i < pack.count; ++i)
+            best = std::min(best, Dist2d(x, y, pack.members[i]));
+        return best;
+    }
+
+    // The nearest point of Firemaw's path, its legs included, to (x, y).
+    float NearestFiremawPath(float x, float y)
+    {
+        float best = 1e9f;
+        for (std::size_t i = 0; i + 1 < std::size(kFiremawPath); ++i)
+        {
+            Spawn const& a = kFiremawPath[i];
+            Spawn const& b = kFiremawPath[i + 1];
+            float const dx = b.x - a.x, dy = b.y - a.y;
+            float t = ((x - a.x) * dx + (y - a.y) * dy) / (dx * dx + dy * dy);
+            t = std::clamp(t, 0.0f, 1.0f);
+            best = std::min(best, std::hypot(x - (a.x + t * dx), y - (a.y + t * dy)));
+        }
+        return best;
+    }
+}
+
+TEST(DcBlackwingLairTechnicianHallTest, EightPacksInKillOrderWithTheirBoss)
+{
+    for (HallPack const& pack : HallPacks())
+    {
+        ScriptedPullStage const& s = DtRow(pack.order);
+        EXPECT_EQ(s.bossEntry, pack.order <= 5 ? NPC_FIREMAW_ENTRY : NPC_EBONROC_ENTRY) << s.name;
+        EXPECT_TRUE(s.bodyPull) << s.name;
+        EXPECT_TRUE(s.patrolGuard) << s.name << ": Firemaw walks past every one of them";
+        // The camp is the stand spot: the Overseer walks, so the tank walks at the pack.
+        EXPECT_FLOAT_EQ(s.standX, s.campX);
+        EXPECT_FLOAT_EQ(s.standY, s.campY);
+    }
+    // The Death Talon rows don't wait for patrols: theirs is an authored plan.
+    EXPECT_FALSE(DtRow(0).patrolGuard);
+    EXPECT_FALSE(DtRow(1).patrolGuard);
+}
+
+TEST(DcBlackwingLairTechnicianHallTest, EachCylinderHoldsItsOwnPackAndNoOther)
+{
+    std::vector<HallPack> const packs = HallPacks();
+    for (HallPack const& pack : packs)
+        for (HallPack const& other : packs)
+            for (std::size_t i = 0; i < other.count; ++i)
+            {
+                Spawn const& m = other.members[i];
+                EXPECT_EQ(ScriptedPullRegistry::InPack(DtRow(pack.order), m.x, m.y, m.z), pack.order == other.order)
+                    << DtRow(pack.order).name << " vs a member of row " << other.order;
+            }
+}
+
+// The floor packs are fought in Broodlord's room: out of every pack's reach and well
+// clear of the end of Firemaw's path, so a pack fought there brings nothing else.
+TEST(DcBlackwingLairTechnicianHallTest, TheBroodlordRoomCampIsClearOfFiremawAndEveryPack)
+{
+    ScriptedPullStage const& row = DtRow(2);
+    for (HallPack const& pack : HallPacks())
+        EXPECT_GT(NearestOf(row.campX, row.campY, pack), ELITE_REACH + CAMP_SPREAD) << "row " << pack.order;
+    // 70yd from the nearest point of his path: the whole fight and his own reach
+    // with room to spare.
+    EXPECT_GT(NearestFiremawPath(row.campX, row.campY), ELITE_REACH + CAMP_SPREAD + 20.0f);
+    for (int32 order = 3; order <= 5; ++order)
+    {
+        EXPECT_FLOAT_EQ(DtRow(order).campX, row.campX);
+        EXPECT_FLOAT_EQ(DtRow(order).campY, row.campY);
+    }
+}
+
+// The landing pack comes down to Firemaw's floor; with it dead the 465 packs come to
+// the landing. Both camps are out of reach of every pack still up when they are used.
+TEST(DcBlackwingLairTechnicianHallTest, TheUpperCampsAreOutOfReachOfThePacksStillUp)
+{
+    std::vector<HallPack> const packs = HallPacks();
+    for (HallPack const& pack : packs)
+    {
+        if (pack.order < 6)
+            continue;
+        ScriptedPullStage const& row = DtRow(pack.order);
+        for (HallPack const& other : packs)
+            if (other.order >= pack.order)
+                EXPECT_GT(NearestOf(row.campX, row.campY, other), ELITE_REACH + CAMP_SPREAD)
+                    << row.name << " vs row " << other.order;
+    }
+    // The landing is Firemaw's own waypoint 4: floor he walks.
+    EXPECT_FLOAT_EQ(DtRow(7).campX, kFiremawPath[3].x);
+    EXPECT_FLOAT_EQ(DtRow(7).campY, kFiremawPath[3].y);
+}
+
+// The rows arm from where the tank stands after each boss: Broodlord's spawn for the
+// floor rows, Firemaw's floor for the upper ones, and stay armed at their camps.
+TEST(DcBlackwingLairTechnicianHallTest, RowsArmWhereTheTankStands)
+{
+    constexpr float broodX = -7573.97f, broodY = -1034.39f, broodZ = 449.3f;
+    for (int32 order = 2; order <= 5; ++order)
+    {
+        ScriptedPullStage const& s = DtRow(order);
+        EXPECT_TRUE(ScriptedPullRegistry::InArmRange(s, broodX, broodY, broodZ)) << s.name;
+        EXPECT_TRUE(ScriptedPullRegistry::InArmRange(s, s.campX, s.campY, s.campZ)) << s.name;
+    }
+    for (int32 order = 6; order <= 9; ++order)
+    {
+        ScriptedPullStage const& s = DtRow(order);
+        EXPECT_TRUE(ScriptedPullRegistry::InArmRange(s, -7520.2f, -1025.8f, 449.1f)) << s.name;
+        EXPECT_TRUE(ScriptedPullRegistry::InArmRange(s, s.campX, s.campY, s.campZ)) << s.name;
+    }
 }
 
 TEST(DungeonEventBlackwingLairTest, TransitStopsBeforeBroodlordAndDoesNotRearmOnApproach)
