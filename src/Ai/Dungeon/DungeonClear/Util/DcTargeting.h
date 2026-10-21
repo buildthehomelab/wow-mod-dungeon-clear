@@ -151,9 +151,10 @@ public:
 
     // Scans every loaded creature on the bot's map for an alive hostile that
     // (a) is not already in combat with someone else and (b) the bot can path
-    // to. Returns the closest such unit, or nullptr. Used by the stalled
-    // fallback to kill obstacles when no path to the boss exists.
-    static Unit* FindNearestReachableHostile(Player* bot);
+    // to on its own level. Never a boss, a boss's summon or an excluded entry.
+    // Returns the closest such unit, or nullptr. Used by the stalled fallback to
+    // kill obstacles when no path to the boss exists.
+    static Unit* FindNearestReachableHostile(Player* bot, AiObjectContext* ctx);
 
     // Every unit that currently holds `member` in combat, GUID-deduped and
     // appended to `out`: the PvE combat references first (the authoritative
