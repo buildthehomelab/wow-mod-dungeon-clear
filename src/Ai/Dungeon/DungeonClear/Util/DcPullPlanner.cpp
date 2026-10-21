@@ -1114,8 +1114,16 @@ std::optional<Position> DcPullPlanner::ComputeSafeCamp(PlayerbotAI* botAI, Unit*
     // route, or the camp lands 40yd from him on the leg he walks next. Empty
     // (no-op) unless a room-clear is active for a boss that walks a DB path.
     std::vector<G3D::Vector3> const bossRoute = DcTargeting::ActiveRoomPatrolRoute(bot, ctx);
+    // Any other patrolling boss whose loop comes near the pack (Baron Geddon's): the
+    // same, whether or not his room is the one being cleared. Measured on the camp's
+    // floor, so a loop on a ledge overhead doesn't push the camp back.
+    std::vector<std::vector<G3D::Vector3>> const patrolRoutes = DcTargeting::BossPatrolRoutesNear(
+        bot, ctx, target->GetPosition(), DC_BOSS_PATROL_CAMP_RANGE, target);
+    if (!patrolRoutes.empty())
+        DC_PULL_DEBUG("[DC:{}] safe-camp: keeping clear of {} patrolling boss route(s) near {}",
+                      bot->GetName(), patrolRoutes.size(), target->GetGUID().ToString());
 
-    auto clearanceAt = [&others, &bossRoute](Position const& p) -> float
+    auto clearanceAt = [&others, &bossRoute, &patrolRoutes](Position const& p) -> float
     {
         float nearest = std::numeric_limits<float>::max();
         for (Unit* u : others)
@@ -1123,6 +1131,10 @@ std::optional<Position> DcPullPlanner::ComputeSafeCamp(PlayerbotAI* botAI, Unit*
         if (!bossRoute.empty())
             nearest = std::min(nearest, DungeonClearMath::DistToClosedRoute2D(
                                             p.GetPositionX(), p.GetPositionY(), bossRoute));
+        for (std::vector<G3D::Vector3> const& route : patrolRoutes)
+            nearest = std::min(nearest, DungeonClearMath::DistToClosedRouteOnFloor2D(
+                                            p.GetPositionX(), p.GetPositionY(), p.GetPositionZ(),
+                                            route, DC_Z_LEVEL_TOLERANCE));
         return nearest;
     };
 
@@ -1360,6 +1372,10 @@ std::optional<DcPullPlanner::RoomClearLane> DcPullPlanner::ComputeRoomClearLane(
     // and a hound pack 9yd off his route has no stand spot 40yd from it anyway.
     std::vector<G3D::Vector3> const bossRoute =
         DcEngageGeometry::PatrolRouteOf(boss->ToCreature());
+    // Every other patrolling boss whose loop comes near the pack (Baron Geddon's):
+    // the camp keeps safeRadius from that route too, on its floor.
+    std::vector<std::vector<G3D::Vector3>> const patrolRoutes = DcTargeting::BossPatrolRoutesNear(
+        bot, ctx, target->GetPosition(), DC_BOSS_PATROL_CAMP_RANGE, boss);
 
     GuidVector const& farTargets = ctx->GetValue<GuidVector>(DcKey::FarTargets)->Get();
     GuidVector const& possibleTargets =
@@ -1412,6 +1428,14 @@ std::optional<DcPullPlanner::RoomClearLane> DcPullPlanner::ComputeRoomClearLane(
         // route clearance with its own fallbacks.
         if (!bossRoute.empty() &&
             DungeonClearMath::DistToClosedRoute2D(lane.campX, lane.campY, bossRoute) < bossRadius)
+            continue;
+        if (std::any_of(patrolRoutes.begin(), patrolRoutes.end(),
+                        [&](std::vector<G3D::Vector3> const& route)
+                        {
+                            return DungeonClearMath::DistToClosedRouteOnFloor2D(
+                                       lane.campX, lane.campY, target->GetPositionZ(), route,
+                                       DC_Z_LEVEL_TOLERANCE) < safeRadius;
+                        }))
             continue;
         if (tried++ >= kMaxValidated)
             break;

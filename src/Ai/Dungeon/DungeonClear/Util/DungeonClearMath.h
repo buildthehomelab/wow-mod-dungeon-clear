@@ -501,6 +501,13 @@ namespace DungeonClearMath
     // path loops last -> first). One node = a point; empty = +inf.
     float DistToClosedRoute2D(float px, float py, std::vector<G3D::Vector3> const& route);
 
+    // The same, counting only the legs that pass on the point's own floor: where a leg
+    // comes closest to (px, py), its height (interpolated along the leg) is within
+    // zTolerance of pz. A patrol on the ledge above a camp never walks into it. +inf
+    // when no leg does.
+    float DistToClosedRouteOnFloor2D(float px, float py, float pz,
+                                     std::vector<G3D::Vector3> const& route, float zTolerance);
+
     // Scripted-stage MUSTER gate (pure). A ScriptedPullRegistry stage is a planned
     // fight against a hand-counted pack, and the party should arrive at it topped
     // up — the way it arrives at a boss — rather than merely "not resting".

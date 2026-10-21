@@ -361,6 +361,29 @@ float DungeonClearMath::DistToClosedRoute2D(float px, float py,
     return std::sqrt(best);
 }
 
+float DungeonClearMath::DistToClosedRouteOnFloor2D(float px, float py, float pz,
+                                                   std::vector<G3D::Vector3> const& route,
+                                                   float zTolerance)
+{
+    float best = std::numeric_limits<float>::max();
+    for (std::size_t i = 0; i < route.size(); ++i)
+    {
+        G3D::Vector3 const& a = route[i];
+        G3D::Vector3 const& b = route[(i + 1) % route.size()];
+        float const ex = b.x - a.x;
+        float const ey = b.y - a.y;
+        float const len2 = ex * ex + ey * ey;
+        float t = len2 > 1e-6f ? ((px - a.x) * ex + (py - a.y) * ey) / len2 : 0.0f;
+        t = std::clamp(t, 0.0f, 1.0f);
+        if (std::fabs(a.z + t * (b.z - a.z) - pz) > zTolerance)
+            continue;
+        float const dx = px - (a.x + t * ex);
+        float const dy = py - (a.y + t * ey);
+        best = std::min(best, std::sqrt(dx * dx + dy * dy));
+    }
+    return best;
+}
+
 bool DungeonClearMath::ShouldMusterForScriptedStage(bool stagePending, bool toppedUp,
                                                     std::uint32_t waitSince,
                                                     std::uint32_t now,

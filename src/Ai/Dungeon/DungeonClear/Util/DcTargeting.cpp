@@ -1353,6 +1353,38 @@ std::vector<G3D::Vector3> DcTargeting::ActiveRoomPatrolRoute(Player* bot, AiObje
         return {};
     return DcEngageGeometry::PatrolRouteOf(GetLiveBoss(bot, ctx, next->entry));
 }
+std::vector<std::vector<G3D::Vector3>> DcTargeting::BossPatrolRoutesNear(
+    Player* bot, AiObjectContext* ctx, Position const& near, float range, Unit const* except)
+{
+    std::vector<std::vector<G3D::Vector3>> routes;
+    if (!bot || !ctx)
+        return routes;
+    Map* map = bot->GetMap();
+    if (!map || !map->IsDungeon())
+        return routes;
+
+    for (auto const& kv : map->GetCreatureBySpawnIdStore())
+    {
+        Creature* c = kv.second;
+        // The walker itself: a formation follower's route is its leader's, and the
+        // leader is in the store too. Cheap gates before the boss lookups.
+        if (!c || c == except || !c->IsAlive() || c->IsInCombat() ||
+            c->GetDefaultMovementType() != WAYPOINT_MOTION_TYPE)
+            continue;
+        if (!IsDungeonBossEntry(ctx, c->GetEntry()) && !c->IsDungeonBoss() && !c->isWorldBoss())
+            continue;
+        if (!bot->IsHostileTo(c))
+            continue;
+        std::vector<G3D::Vector3> route = DcEngageGeometry::PatrolRouteOf(c);
+        if (route.empty() ||
+            DungeonClearMath::DistToClosedRouteOnFloor2D(near.GetPositionX(), near.GetPositionY(),
+                                                         near.GetPositionZ(), route,
+                                                         DC_Z_LEVEL_TOLERANCE) > range)
+            continue;
+        routes.push_back(std::move(route));
+    }
+    return routes;
+}
 RoomAggroBoss const* DcTargeting::ActiveRoomCampBox(Player* bot, AiObjectContext* ctx)
 {
     if (!bot || !ctx)
