@@ -365,8 +365,9 @@ public:
     // pack (DungeonClearMath::IsPatrolPackmate: same formation, or a formation-less
     // neighbour of a formation-less target; a boss only by formation, and a linked
     // respawn never vouches for a mover), moves on its own
-    // (DungeonClearMath::IsPatrolMover: waypoint mover, follower of a waypoint
-    // leader, or a boss that wanders or walks), and stands within its aggro reach
+    // (IsPatrolMoverNow: waypoint mover, follower of a waypoint leader, a boss
+    // whose path or wander takes him out of his own reach, or a boss with no DB
+    // movement walking right now), and stands within its aggro reach
     // + PullEnRouteMargin + PullPatrolBuffer of the target or of `camp` (nullptr =
     // no camp yet) WITH line of sight to it — a patrol one wall over cannot see
     // the fight. One walking away from both — while a walking target is not
@@ -389,6 +390,28 @@ public:
     };
     static PatrolThreat PatrolThreatNear(Player* bot, AiObjectContext* ctx, Unit* target,
                                          Position const* camp);
+
+    // DungeonClearMath::IsPatrolMover resolved for a live creature: its DB movement
+    // type, its formation leader's, and — for a boss — how far that movement takes
+    // him from his spawn (BossRoamRadius2D over PatrolRouteOf / his wander radius)
+    // against his own unpadded AggroReach.
+    static bool IsPatrolMoverNow(Player* bot, Creature* c, bool isBoss);
+
+    // A PATROLLING boss (IsPatrolMoverNow) standing within another living, idle,
+    // hostile boss's aggro reach + PullEnRouteMargin + PullPatrolBuffer, on his
+    // floor and in sight of him: Baron Geddon's loop passes 9yd from Shazzrah.
+    // Chasing him there walks the raid into Shazzrah, and pulling him there brings
+    // Shazzrah. `other` is the first such boss (nullptr = none); `closing` is true
+    // unless the patrolling boss is walking away from every one of them. Walking
+    // away and already outside the other boss's real reach does not count. Armed by
+    // PullPatrolGuard; nothing while the patrolling boss is in combat.
+    struct BossNearBoss
+    {
+        Creature* other = nullptr;
+        bool closing = false;
+    };
+    static BossNearBoss PatrollingBossNearOtherBoss(Player* bot, AiObjectContext* ctx,
+                                                    Creature* boss);
 
     // The closed waypoint route `c` walks — its own path, or its formation
     // leader's — as world points; empty when it does not patrol a DB path.

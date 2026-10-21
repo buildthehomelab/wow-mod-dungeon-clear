@@ -895,6 +895,74 @@ DungeonClearAdvanceAction::Step DungeonClearAdvanceAction::TryBossNotPresentStal
     return Step::Continue;
 }
 
+// Patrolling-boss hold. Everything below chases a loaded boss's LIVE position, and
+// for a boss who walks a long loop that is wherever the loop has taken him — Baron
+// Geddon's passes 9yd from Shazzrah. The engage guard holds the pull itself, but only
+// once the tank is at engage range, by which time following him there has walked the
+// raid into the other boss. So while he stands by another living, idle boss
+// (DcEngageGeometry::PatrollingBossNearOtherBoss), stop where the raid is and let him
+// walk on; the chase resumes when he has. Only within DC_PATROL_BOSS_HOLD_RANGE of
+// him (further out the walk in is the wait), never in combat, and on the patrol
+// guard's budget (DungeonClearMath::ShouldHoldForPatrol, its own latch keyed by the
+// boss), so a boss who never leaves is chased after twice PullPatrolWaitSec.
+// Lucifron, the other long patroller in Molten Core, never comes within 75yd of
+// another boss.
+DungeonClearAdvanceAction::Step DungeonClearAdvanceAction::TryPatrollingBossHold(AdvanceState const& st)
+{
+    DungeonBossInfo const* next = st.next;
+    Creature* const boss = st.liveBoss;
+    if (next->kind != DungeonAnchorKind::Boss || !boss)
+        return Step::Continue;
+
+    DcApproachState& appr = *st.appr;
+    if (appr.bossApproachWaitGuid != boss->GetGUID())
+    {
+        appr.bossApproachWaitGuid = boss->GetGUID();
+        appr.bossApproachWaitSince = 0;
+    }
+    if (bot->IsInCombat() || boss->IsInCombat())
+    {
+        appr.bossApproachWaitSince = 0;
+        return Step::Continue;
+    }
+    // Out of range: whatever was held for belonged to an earlier approach.
+    if (bot->GetExactDist2d(boss) > DC_PATROL_BOSS_HOLD_RANGE)
+    {
+        appr.bossApproachWaitSince = 0;
+        return Step::Continue;
+    }
+
+    DcEngageGeometry::BossNearBoss const byBoss =
+        DcEngageGeometry::PatrollingBossNearOtherBoss(bot, context, boss);
+    uint32 const now = getMSTime();
+    uint32 const waitMs = uint32(DcSettings::GetFloat(bot, "PullPatrolWaitSec") * 1000.0f);
+    uint32 const heldSince = appr.bossApproachWaitSince;
+    if (!DungeonClearMath::ShouldHoldForPatrol(
+            byBoss.other != nullptr, byBoss.closing, appr.bossApproachWaitSince, now, waitMs,
+            waitMs * DungeonClearMath::PatrolHoldHardFactor, appr.bossApproachWaitSince))
+    {
+        if (heldSince != 0 && appr.bossApproachWaitSince == 0)
+            LOG_INFO("playerbots.dungeonclear",
+                     "[DC:{}] {} has walked away from the other boss after {}ms -> chasing",
+                     bot->GetName(), next->name, getMSTimeDiff(heldSince, now));
+        return Step::Continue;
+    }
+
+    // Hold implies contended, so byBoss.other is set.
+    if (heldSince == 0)
+        LOG_INFO("playerbots.dungeonclear",
+                 "[DC:{}] {} is {:.1f}yd from {} ({}) -> holding {:.1f}yd from him until he "
+                 "walks on",
+                 bot->GetName(), next->name, boss->GetExactDist2d(byBoss.other),
+                 byBoss.other->GetName(), byBoss.closing ? "closing" : "receding",
+                 bot->GetExactDist2d(boss));
+    DcMovement::StopBot(bot, DcMovement::Stop::Hold);
+    ClearStall(context);
+    SetPhase(context, "waiting for " + next->name + " to walk away from " +
+                          byBoss.other->GetName());
+    return Step::ReturnTrue;
+}
+
 // ==== Tier A — pre-path observation + effects (stuck / pursuit) ===========
 
 // Position-based stuck bookkeeping. Samples world position every tick (so
@@ -2277,6 +2345,8 @@ bool DungeonClearAdvanceAction::Execute(Event /*event*/)
     if (Step s = TryBetweenPullsRest(st); s != Step::Continue)
         return s == Step::ReturnTrue;
     if (Step s = TryBossNotPresentStall(st); s != Step::Continue)
+        return s == Step::ReturnTrue;
+    if (Step s = TryPatrollingBossHold(st); s != Step::Continue)
         return s == Step::ReturnTrue;
 
     // Bookkeeping: on a boss change wipe the per-approach counters so a stale

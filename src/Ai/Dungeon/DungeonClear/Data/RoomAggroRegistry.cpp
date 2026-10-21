@@ -339,13 +339,15 @@ namespace
         // out; his pack stays in, so the room never reads clear around him) and
         // stops short of pack 56639 (72.3yd on, Lucifron's row clears it).
         // pullOutRadius 15: the nearest hound (56647, 27.5yd, to 22.5 with its
-        // wander) is inside his computed ~30yd exclusion, which would leave it to the
-        // boss pull; 15 keeps it clearable and forces the drag-to-camp pull. Every
-        // hound is linked-respawn to him, which only stops a dead hound coming back
-        // while he lives. Whitelist = Core Hounds (his own Ancient Core Hounds and
-        // Lava Surgers patrol elsewhere; the patrol guard holds for those).
+        // wander) is inside his computed exclusion (~41yd: aggro 23 + his 12yd combat
+        // reach + reaches/margins), which would leave it to the boss pull; 15 keeps
+        // it clearable and forces the drag-to-camp pull. skirtRadius 45, Panic's
+        // radius, a little past that sphere. Every hound is linked-respawn to him,
+        // which only stops a dead hound coming back while he lives. Whitelist = Core
+        // Hounds (his own Ancient Core Hounds and Lava Surgers patrol elsewhere; the
+        // patrol guard holds for those).
         { 409, 11982, 70.0f, { 11671 }, false, 0.0f, 0.0f,
-          /*pullOutRadius*/ 15.0f, /*skirtRadius*/ 40.0f },
+          /*pullOutRadius*/ 15.0f, /*skirtRadius*/ 45.0f },
 
         // Molten Core (409): Gehennas. No scripted room pull; his two Flamewakers
         // stand 8-10yd from him (his adds, not whitelisted), the trash around him
@@ -357,7 +359,7 @@ namespace
         // wandering Firelord at 85.2 (80.2 at its nearest). Magmadar's patrolling
         // Ancient Core Hounds pass 16-29yd from him and are taken whenever they
         // walk into the room. pullOutRadius 15: the 23.5yd Firelord is inside his
-        // computed ~30yd exclusion and would otherwise come with him; 15 keeps it
+        // computed ~34yd exclusion and would otherwise come with him; 15 keeps it
         // clearable (the Flamewakers stay out by the whitelist) and forces the
         // drag-to-camp pull. skirtRadius 35, as Garr's. Most of this trash is
         // linked-respawn to him, which does not matter to the clear: a dead linked
@@ -367,13 +369,13 @@ namespace
 
         // Molten Core (409): Shazzrah. No scripted room pull, and he Blinks to the
         // raid, so his fight goes wherever it stands. He walks a 35yd loop (path
-        // 566080, up to 9yd from his spawn 587.3,-802.0); measured over that loop the
+        // 566080, up to 10.6yd from his spawn 587.3,-802.0); measured over that loop the
         // trash west of him is a Flameguard at 28.3-39.1yd, a Lava Reaver at
         // 34.7-45.3, then Firewalkers, Lava Elementals and Flameguards at 40.3-65.9,
         // a third of them wandering 5yd. The next ones (72.1 and 76.5-5) never come
         // inside 70, so radius 70 holds the group whole from anywhere on the loop.
         // pullOutRadius 15: the Flameguard (23.3 at its nearest) and the Reaver are
-        // inside his computed ~30yd exclusion; 15 keeps them clearable and forces
+        // inside his computed ~34yd exclusion; 15 keeps them clearable and forces
         // the drag-to-camp pull. skirtRadius 40 keeps the dragged packs clear of the
         // loop as well as his aggro. All of it is linked-respawn to Baron Geddon,
         // whom the roster now kills first (MoltenCoreEvents.cpp), not to Shazzrah.

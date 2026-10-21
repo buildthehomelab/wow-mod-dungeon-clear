@@ -137,11 +137,11 @@ void RegisterMoltenCoreRoster(std::vector<BossRosterPatch>& t)
     // of his ramp down past Shazzrah, 9yd from his spawn, and back, ~220s at
     // walk. Shazzrah first meant the raid waiting at Shazzrah, and fighting
     // him, on that loop: Geddon walked into the Shazzrah pull. Geddon first
-    // means he is fought where the raid catches him, mostly on his ramp — the
-    // boss engage's patrol guard holds him while he is down by Shazzrah, who
-    // walks a 35yd loop of his own (path 566080) and so counts as a patrol —
-    // and Shazzrah after him has nobody walking in. Their kill bits are
-    // untouched; only the clear order key moves.
+    // means he is fought where the raid catches him, mostly on his ramp — while
+    // he stands by Shazzrah the raid neither chases nor pulls him
+    // (DcEngageGeometry::PatrollingBossNearOtherBoss, the advance hold and the
+    // boss engage's patrol guard) — and Shazzrah after him has nobody walking
+    // in. Their kill bits are untouched; only the clear order key moves.
     p.reorder = {
         { kGeddon,   4 },
         { kShazzrah, 5 },

@@ -651,6 +651,107 @@ bool DcEngageGeometry::TargetInsideBystanderPack(Player* bot, Unit* target)
     return false;
 }
 
+bool DcEngageGeometry::IsPatrolMoverNow(Player* bot, Creature* c, bool isBoss)
+{
+    if (!bot || !c)
+        return false;
+    CreatureGroup const* grp = c->GetFormation();
+    Creature const* const leader = grp ? grp->GetLeader() : nullptr;
+    bool const selfWaypoint = c->GetDefaultMovementType() == WAYPOINT_MOTION_TYPE;
+    bool const leaderWaypoint =
+        leader && leader != c && leader->GetDefaultMovementType() == WAYPOINT_MOTION_TYPE;
+    bool const wanders = c->GetDefaultMovementType() == RANDOM_MOTION_TYPE;
+
+    float roam = 0.0f;
+    float reach = 0.0f;
+    if (isBoss && (selfWaypoint || leaderWaypoint || wanders))
+    {
+        float hx = 0.0f, hy = 0.0f, hz = 0.0f;
+        c->GetRespawnPosition(hx, hy, hz);
+        std::vector<G3D::Vector3> const route = PatrolRouteOf(c);
+        // A path we cannot read (scripted, or not loaded): count him, as before.
+        roam = ((selfWaypoint || leaderWaypoint) && route.empty())
+                   ? std::numeric_limits<float>::max()
+                   : DungeonClearMath::BossRoamRadius2D(hx, hy, route,
+                                                        wanders ? c->GetWanderDistance() : 0.0f);
+        reach = AggroReach(bot, c, 0.0f);
+    }
+    return DungeonClearMath::IsPatrolMover(selfWaypoint, leaderWaypoint, isBoss, wanders,
+                                           c->isMoving(), roam, reach);
+}
+
+DcEngageGeometry::BossNearBoss DcEngageGeometry::PatrollingBossNearOtherBoss(Player* bot,
+                                                                             AiObjectContext* ctx,
+                                                                             Creature* boss)
+{
+    BossNearBoss out;
+    if (!bot || !ctx || !boss || !boss->IsAlive() || boss->IsInCombat())
+        return out;
+    if (!DcSettings::GetBool(bot, "PullPatrolGuard"))
+        return out;
+    if (!IsPatrolMoverNow(bot, boss, /*isBoss*/ true))
+        return out;
+
+    float const pad = DcSettings::GetFloat(bot, "PullEnRouteMargin") +
+                      DcSettings::GetFloat(bot, "PullPatrolBuffer");
+    constexpr float kMaxAggroReach = 50.0f;
+    float const searchRadius = kMaxAggroReach + pad;
+
+    std::list<Creature*> nearby;
+    Acore::AnyUnitInObjectRangeCheck check(boss, searchRadius);
+    Acore::CreatureListSearcher<Acore::AnyUnitInObjectRangeCheck> searcher(boss, nearby, check);
+    Cell::VisitObjects(boss, searcher, searchRadius);
+
+    CreatureGroup const* const bossGroup = boss->GetFormation();
+
+    // Where the boss walks next: the gap to another boss closes while he walks at
+    // him, or while he is paused on a waypoint (about to turn either way).
+    bool bossWalking = false;
+    Position bossDest;
+    if (boss->isMoving() && boss->movespline && !boss->movespline->Finalized())
+    {
+        G3D::Vector3 const dest = boss->movespline->CurrentDestination();
+        bossDest.Relocate(dest.x, dest.y, dest.z);
+        bossWalking = true;
+    }
+
+    for (Creature* c : nearby)
+    {
+        if (!c || c == boss || !c->IsAlive() || c->IsInCombat())
+            continue;
+        if (!(DcTargeting::IsDungeonBossEntry(ctx, c->GetEntry()) || c->isWorldBoss()))
+            continue;
+        if (!bot->IsHostileTo(c) || IsDisplayedDead(c))
+            continue;
+        if (bossGroup && c->GetFormation() == bossGroup)
+            continue;
+        if (std::fabs(c->GetPositionZ() - boss->GetPositionZ()) > DC_Z_LEVEL_TOLERANCE)
+            continue;
+
+        float const dist = boss->GetExactDist2d(c);
+        if (dist > AggroReach(bot, c, pad))
+            continue;
+        if (!c->IsWithinLOSInMap(boss, VMAP::ModelIgnoreFlags::Nothing, LINEOFSIGHT_CHECK_VMAP))
+            continue;
+
+        bool const receding =
+            bossWalking && DungeonClearMath::IsReceding(dist, c->GetExactDist2d(&bossDest));
+        // Walking off and already outside the other boss's real reach: go.
+        if (receding && dist > AggroReach(bot, c, 0.0f))
+            continue;
+
+        if (!out.other)
+        {
+            out.other = c;
+            DC_PULL_DEBUG("[DC:{}] boss guard: {} is {:.1f}yd from {} ({}) -> not chasing him yet",
+                          bot->GetName(), boss->GetName(), dist, c->GetName(),
+                          receding ? "receding" : "closing");
+        }
+        out.closing = out.closing || !receding;
+    }
+    return out;
+}
+
 DcEngageGeometry::PatrolThreat DcEngageGeometry::PatrolThreatNear(Player* bot,
                                                                   AiObjectContext* ctx,
                                                                   Unit* target,
@@ -712,15 +813,12 @@ DcEngageGeometry::PatrolThreat DcEngageGeometry::PatrolThreatNear(Player* bot,
         float const toTarget = target->GetExactDist2d(c);
 
         // Does it move on its own? A formation follower inherits its leader's
-        // route, so Lucifron's Protectors count as patrollers with him.
-        Creature const* const leader = grp ? grp->GetLeader() : nullptr;
+        // route, so Lucifron's Protectors count as patrollers with him. A boss
+        // only when his movement takes him out of his own reach (not Garr's
+        // wander, not Shazzrah's circle).
         bool const boss = DcTargeting::IsDungeonBossEntry(ctx, c->GetEntry()) ||
                           c->isWorldBoss();
-        bool const mover = DungeonClearMath::IsPatrolMover(
-            c->GetDefaultMovementType() == WAYPOINT_MOTION_TYPE,
-            leader && leader != c &&
-                leader->GetDefaultMovementType() == WAYPOINT_MOTION_TYPE,
-            boss, c->GetDefaultMovementType() == RANDOM_MOTION_TYPE, c->isMoving());
+        bool const mover = IsPatrolMoverNow(bot, c, boss);
 
         // Part of the pack? A boss only by formation, and a respawn link never
         // vouches for a mover — see IsPatrolPackmate for the Molten Core links.

@@ -211,11 +211,25 @@ struct DcApproachState
     // engage is not a pull, so it keeps its own here, on the same
     // DungeonClearMath::ShouldHoldForPatrol contract (latch, soft/hard budget).
     // `bossPatrolCommit*` is the go: once the guard has let the engage through, the
-    // walk-in is not re-held for DC_BOSS_PATROL_COMMIT_MS — stopping the tank halfway
-    // in would leave it inside the boss's aggro, the pull started anyway.
+    // walk-in is not re-held for DC_BOSS_PATROL_COMMIT_MS (DC_BOSS_PATROL_COMMIT_MAX_MS
+    // while the tank is still walking) — stopping the tank halfway in would leave it
+    // inside the boss's aggro, the pull started anyway.
+    //
+    // Each latch is keyed by the boss it was armed for (`*WaitGuid`): ShouldHoldForPatrol
+    // keeps a released latch armed while its contention lasts, and the pull that
+    // follows a release puts the guard out of reach of the uncontended tick that would
+    // clear it. Without the key, Geddon's spent budget carried over to Shazzrah, whose
+    // first tick then read far past the hard cap and pulled at once. The engage latch
+    // is also dropped when the guard lets the engage go (one budget per attempt), and
+    // both are dropped in combat; Advance's when the tank is out of hold range.
     uint32     bossPatrolWaitSince = 0;  // getMSTime() the boss hold began; 0 = not holding
+    ObjectGuid bossPatrolWaitGuid;       // boss that latch belongs to
     ObjectGuid bossPatrolCommitGuid;     // boss the guard last let through
     uint32     bossPatrolCommitMs  = 0;  // getMSTime() it did
+    // Advance's hold short of a patrolling boss who is next to another boss
+    // (DcEngageGeometry::PatrollingBossNearOtherBoss): same contract, own latch.
+    uint32     bossApproachWaitSince = 0;
+    ObjectGuid bossApproachWaitGuid;
 
     // Mid-glide hazard probe (Advance). While a continuous escort spline is in
     // flight the hop ladder short-circuits (the ride outranks everything), so a
@@ -397,8 +411,11 @@ struct DcApproachState
         chaseOrigin         = Position();
         chaseHoldSince      = 0;
         bossPatrolWaitSince = 0;
+        bossPatrolWaitGuid.Clear();
         bossPatrolCommitGuid.Clear();
         bossPatrolCommitMs  = 0;
+        bossApproachWaitSince = 0;
+        bossApproachWaitGuid.Clear();
         glideHazardProbeMs  = 0;
         glideHazardIgnore.Clear();
         doorStallGuid.Clear();

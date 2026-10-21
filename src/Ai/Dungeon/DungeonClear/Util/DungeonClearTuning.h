@@ -68,8 +68,15 @@ constexpr uint32 DC_ENGAGE_WALK_YIELD_MS = 1000;
 // engage through (DcApproachState::bossPatrolCommit*): the tank's walk from the
 // standoff to the boss, ~30yd at run speed, with room to spare. A pull that has
 // not landed by then (the boss walked off, the walk-in was refused) is guarded
-// afresh.
+// afresh. While the tank is still moving the commit holds up to
+// DC_BOSS_PATROL_COMMIT_MAX_MS, for a walk-in that has to catch a walking boss.
 constexpr uint32 DC_BOSS_PATROL_COMMIT_MS = 10000;
+constexpr uint32 DC_BOSS_PATROL_COMMIT_MAX_MS = 20000;
+
+// Advance holds short of a patrolling boss who is standing by another boss
+// (DcEngageGeometry::PatrollingBossNearOtherBoss) only once the tank is this close
+// to him (2D yd). Further out the walk in is the time he needs to move on.
+constexpr float DC_PATROL_BOSS_HOLD_RANGE = 100.0f;
 
 // How much closer the fresh blocking-trash pick must be than a quiet engage-trash
 // sticky before the sticky is dropped for it (DungeonClearMath::ShouldDropTrashSticky).

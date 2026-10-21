@@ -481,8 +481,21 @@ namespace DungeonClearMath
     // waypoint-moving formation leader (Lucifron's Protectors), or a boss that
     // wanders or is walking right now. A boss parked on its spot is NOT: waiting
     // does not move it, so it is the room-aggro skirt's problem, not the guard's.
+    //
+    // A boss with DB movement (waypoint path, formation leader's path, random
+    // wander) counts only when that movement takes him OUT of his own aggro reach
+    // (`bossRoam` > `bossReach`, BossRoamRadius2D): Lucifron's loop runs 48yd from
+    // his spawn and Baron Geddon's 238yd, but Shazzrah's 35yd circle stays within 11yd
+    // and Garr wanders 10yd. Those two are where they always are, and holding every
+    // pull in their own rooms for them only burned the patrol budget. A boss with no
+    // DB movement counts while he is walking (a scripted walk).
     bool IsPatrolMover(bool selfWaypoint, bool leaderWaypoint, bool isBoss,
-                       bool bossWanders, bool movingNow);
+                       bool bossWanders, bool movingNow, float bossRoam, float bossReach);
+    // How far a creature's DB movement takes it from its spawn (hx, hy): the
+    // farthest node of its patrol `route` (closed or not), or its random
+    // `wanderDist`, whichever is larger. 0 for a creature that stands still.
+    float BossRoamRadius2D(float hx, float hy, std::vector<G3D::Vector3> const& route,
+                           float wanderDist);
     // Is the candidate part of the pack being pulled (so never a threat to it)?
     // Same formation; or, when NEITHER is in a formation, anything within
     // `packRadius` (loose packs of individual waypoint movers). A formation-less

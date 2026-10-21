@@ -1284,7 +1284,11 @@ DungeonClear.PullPatrolWaitSec = 8.0
 #        The BOSS pull is guarded the same way, with where the raid waits as the
 #        camp (Molten Core: Baron Geddon's loop past Shazzrah, Ancient Core Hounds
 #        past Gehennas, Golemagg and Sulfuron). A patrolling boss is held only for
-#        the other patrols around him.
+#        the other patrols around him, and while his loop has him standing by
+#        another boss (Baron Geddon by Shazzrah) the raid neither chases nor pulls
+#        him. A boss counts as a patrol only when his path or wander takes him out
+#        of his own aggro reach (Lucifron, Geddon; not Garr's wander or Shazzrah's
+#        small circle).
 #        While a PATROLLING room-aggro boss's room is pre-cleared (Lucifron), the
 #        drag-to-camp camp also keeps its clearance from his whole patrol route,
 #        not just from where he stands.

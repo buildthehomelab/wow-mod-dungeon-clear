@@ -712,7 +712,11 @@ inline constexpr DcSettingDef kDcSettings[] =
     // The BOSS engage is guarded too (DungeonClearEngageBossAction), on its own
     // budget, with the tank's standoff as the camp: Molten Core 2026-10, Baron
     // Geddon's loop brought him into the Shazzrah pull. A patrolling boss is held
-    // only for the other patrols around him, never for himself or his formation.
+    // only for the other patrols around him, never for himself or his formation,
+    // and is neither chased nor pulled while his loop has him standing by another
+    // boss (DcEngageGeometry::PatrollingBossNearOtherBoss). A boss counts as a patrol
+    // only when his movement leaves his own aggro reach (DungeonClearMath::
+    // IsPatrolMover: Lucifron and Geddon do, Garr's wander and Shazzrah's circle not).
     //
     // RAID-only by default: a raid fight lasts long enough for any patrol to walk
     // into it, and a raid boss joining a trash pull is a wipe. Dungeons keep the

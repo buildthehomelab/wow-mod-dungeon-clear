@@ -305,6 +305,7 @@ private:
     Step TryLootYield(AdvanceState const& st);
     Step TryBetweenPullsRest(AdvanceState const& st);
     Step TryBossNotPresentStall(AdvanceState const& st);
+    Step TryPatrollingBossHold(AdvanceState const& st);
 
     // Single-observation approach tail (fable2 T2.2 / nav F10). Execute assembles
     // ONE DungeonClearApproach::Observation across three lazy stages (so the

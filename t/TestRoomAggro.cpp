@@ -254,7 +254,7 @@ TEST(RoomAggroRegistryTest, MoltenCoreMagmadarClearsHisHoundPacks)
     // exclusion: the pull-out radius keeps it clearable and forces the drag.
     EXPECT_GT(mag->pullOutRadius, 0.0f);
     EXPECT_LT(mag->pullOutRadius, 22.5f);
-    EXPECT_FLOAT_EQ(RoomAggroRegistry::SkirtOverride(409, 11982), 40.0f);
+    EXPECT_FLOAT_EQ(RoomAggroRegistry::SkirtOverride(409, 11982), 45.0f);
 
     float const bossSafe = mag->pullOutRadius;
     EXPECT_TRUE(RoomAggroRegistry::IsRoomTrash(*mag, 11671, 22.5f, bossSafe));   // 56647 wandered in
