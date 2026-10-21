@@ -372,11 +372,24 @@ float DungeonClearMath::DistToClosedRouteOnFloor2D(float px, float py, float pz,
         G3D::Vector3 const& b = route[(i + 1) % route.size()];
         float const ex = b.x - a.x;
         float const ey = b.y - a.y;
+        float const ez = b.z - a.z;
+        // The part of the leg on the point's floor: z is linear along it.
+        float lo = 0.0f;
+        float hi = 1.0f;
+        if (std::fabs(ez) > 1e-6f)
+        {
+            float const t1 = (pz - zTolerance - a.z) / ez;
+            float const t2 = (pz + zTolerance - a.z) / ez;
+            lo = std::max(lo, std::min(t1, t2));
+            hi = std::min(hi, std::max(t1, t2));
+            if (lo > hi)
+                continue;
+        }
+        else if (std::fabs(a.z - pz) > zTolerance)
+            continue;
         float const len2 = ex * ex + ey * ey;
         float t = len2 > 1e-6f ? ((px - a.x) * ex + (py - a.y) * ey) / len2 : 0.0f;
-        t = std::clamp(t, 0.0f, 1.0f);
-        if (std::fabs(a.z + t * (b.z - a.z) - pz) > zTolerance)
-            continue;
+        t = std::clamp(t, lo, hi);
         float const dx = px - (a.x + t * ex);
         float const dy = py - (a.y + t * ey);
         best = std::min(best, std::sqrt(dx * dx + dy * dy));

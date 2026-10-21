@@ -1528,9 +1528,9 @@ TEST(DungeonClearPatrolGuardTest, DistanceToAPatrolRouteOnTheSameFloor)
     // (50, 0), halfway up a leg from z 0 to z 20, so at z 10.
     std::vector<G3D::Vector3> const ramp{{0, 0, 0}, {100, 0, 20}, {100, 100, 20}, {0, 100, 0}};
     EXPECT_NEAR(DistToClosedRouteOnFloor2D(50.0f, -10.0f, 10.0f, ramp, 5.0f), 10.0f, 1e-3f);
-    // From z 0 that point of the ramp is 10yd up; the nearest leg on its floor is the
-    // west one (x = 0, from z 0 to z 0), 50yd away.
-    EXPECT_NEAR(DistToClosedRouteOnFloor2D(50.0f, -10.0f, 0.0f, ramp, 5.0f), 50.99f, 0.01f);
+    // From z 0 that point of the ramp is 10yd up, but the foot of the ramp (up to z 5,
+    // x <= 25) is on its floor: (25, 0) is 26.9yd away.
+    EXPECT_NEAR(DistToClosedRouteOnFloor2D(50.0f, -10.0f, 0.0f, ramp, 5.0f), 26.93f, 0.01f);
     EXPECT_EQ(DistToClosedRouteOnFloor2D(0.0f, 0.0f, 0.0f, {}, 5.0f), std::numeric_limits<float>::max());
 }
 

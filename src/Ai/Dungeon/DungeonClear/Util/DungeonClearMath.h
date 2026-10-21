@@ -501,10 +501,10 @@ namespace DungeonClearMath
     // path loops last -> first). One node = a point; empty = +inf.
     float DistToClosedRoute2D(float px, float py, std::vector<G3D::Vector3> const& route);
 
-    // The same, counting only the legs that pass on the point's own floor: where a leg
-    // comes closest to (px, py), its height (interpolated along the leg) is within
-    // zTolerance of pz. A patrol on the ledge above a camp never walks into it. +inf
-    // when no leg does.
+    // The same, counting only the parts of the legs on the point's own floor: where
+    // the leg's height (interpolated along it) is within zTolerance of pz. A patrol on
+    // the ledge above a camp never walks into it; one coming down a ramp beside it
+    // does, from where the ramp reaches its floor. +inf when no leg is on it.
     float DistToClosedRouteOnFloor2D(float px, float py, float pz,
                                      std::vector<G3D::Vector3> const& route, float zTolerance);
 
