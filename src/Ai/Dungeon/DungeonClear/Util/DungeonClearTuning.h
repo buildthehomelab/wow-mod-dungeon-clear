@@ -64,6 +64,13 @@ constexpr uint32 DC_LONGROUTE_DEFER_LIMIT = 20;
 // that a genuine stand-down returns the tick to Advance almost at once.
 constexpr uint32 DC_ENGAGE_WALK_YIELD_MS = 1000;
 
+// How long the boss engage's patrol guard stays out of the way once it has let the
+// engage through (DcApproachState::bossPatrolCommit*): the tank's walk from the
+// standoff to the boss, ~30yd at run speed, with room to spare. A pull that has
+// not landed by then (the boss walked off, the walk-in was refused) is guarded
+// afresh.
+constexpr uint32 DC_BOSS_PATROL_COMMIT_MS = 10000;
+
 // How much closer the fresh blocking-trash pick must be than a quiet engage-trash
 // sticky before the sticky is dropped for it (DungeonClearMath::ShouldDropTrashSticky).
 // Wide enough that two roughly equidistant corridor mobs keep the sticky and never

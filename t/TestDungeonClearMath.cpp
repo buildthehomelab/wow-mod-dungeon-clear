@@ -1469,16 +1469,38 @@ TEST(DungeonClearPatrolGuardTest, WhoMovesOnItsOwn)
 
 TEST(DungeonClearPatrolGuardTest, PackmatesAreNeverThreats)
 {
-    // Same formation, or linked respawn: part of the pull.
-    EXPECT_TRUE(IsPatrolPackmate(true, true, true, false, 30.0f, 12.0f));
-    EXPECT_TRUE(IsPatrolPackmate(false, true, false, true, 30.0f, 12.0f));
+    // Args: sameFormation, targetInFormation, candInFormation, linkedRespawn,
+    //       candIsBoss, candMoves, distToTarget, packRadius.
+    // Same formation: part of the pull, boss or not (Garr's Firesworn, Lucifron's
+    // Protectors).
+    EXPECT_TRUE(IsPatrolPackmate(true, true, true, false, false, true, 30.0f, 12.0f));
+    EXPECT_TRUE(IsPatrolPackmate(true, true, true, false, true, true, 30.0f, 12.0f));
     // A loose pack of individual waypoint movers (no formations) within 12yd.
-    EXPECT_TRUE(IsPatrolPackmate(false, false, false, false, 8.0f, 12.0f));
-    EXPECT_FALSE(IsPatrolPackmate(false, false, false, false, 14.0f, 12.0f));
+    EXPECT_TRUE(IsPatrolPackmate(false, false, false, false, false, true, 8.0f, 12.0f));
+    EXPECT_FALSE(IsPatrolPackmate(false, false, false, false, false, true, 14.0f, 12.0f));
     // Lucifron's formation 8.6yd from a hound formation: a threat, not a packmate.
-    EXPECT_FALSE(IsPatrolPackmate(false, true, true, false, 8.6f, 12.0f));
+    EXPECT_FALSE(IsPatrolPackmate(false, true, true, false, true, true, 8.6f, 12.0f));
     // A formation-less patrol passing a formation pack: a threat.
-    EXPECT_FALSE(IsPatrolPackmate(false, true, false, false, 6.0f, 12.0f));
+    EXPECT_FALSE(IsPatrolPackmate(false, true, false, false, false, true, 6.0f, 12.0f));
+}
+
+// creature_linked_respawn is a respawn dependency, not a pull: Molten Core links 30
+// trash to Baron Geddon, and he walked into their pulls (2026-10 logs).
+TEST(DungeonClearPatrolGuardTest, ALinkedRespawnNeverVouchesForAMoverOrABoss)
+{
+    // Geddon, formation-less and patrolling, linked to the pack: a threat at any
+    // distance, even walking right through a formation-less pack.
+    EXPECT_FALSE(IsPatrolPackmate(false, true, false, true, true, true, 30.0f, 12.0f));
+    EXPECT_FALSE(IsPatrolPackmate(false, false, false, true, true, true, 6.0f, 12.0f));
+    // A linked trash patroller (an Ancient Core Hound linked to Magmadar's pack):
+    // the link alone does not make it a packmate.
+    EXPECT_FALSE(IsPatrolPackmate(false, true, false, true, false, true, 6.0f, 12.0f));
+    EXPECT_FALSE(IsPatrolPackmate(false, false, false, true, false, true, 30.0f, 12.0f));
+    // A linked mob that stays put counts only within the pack radius.
+    EXPECT_TRUE(IsPatrolPackmate(false, true, false, true, false, false, 10.0f, 12.0f));
+    EXPECT_FALSE(IsPatrolPackmate(false, true, false, true, false, false, 30.0f, 12.0f));
+    // A boss is never a packmate by proximity either.
+    EXPECT_FALSE(IsPatrolPackmate(false, false, false, false, true, true, 4.0f, 12.0f));
 }
 
 TEST(DungeonClearPatrolGuardTest, RecedingMeansNoCloserAtTheDestination)

@@ -362,15 +362,22 @@ public:
     // keeps the hold (DungeonClearMath::ShouldHoldForPatrol).
     //
     // A threat is out of combat, hostile, on the target's floor, not part of the
-    // pack (DungeonClearMath::IsPatrolPackmate: same formation, linked respawn, or
-    // a formation-less neighbour of a formation-less target), moves on its own
+    // pack (DungeonClearMath::IsPatrolPackmate: same formation, or a formation-less
+    // neighbour of a formation-less target; a boss only by formation, and a linked
+    // respawn never vouches for a mover), moves on its own
     // (DungeonClearMath::IsPatrolMover: waypoint mover, follower of a waypoint
     // leader, or a boss that wanders or walks), and stands within its aggro reach
     // + PullEnRouteMargin + PullPatrolBuffer of the target or of `camp` (nullptr =
     // no camp yet) WITH line of sight to it — a patrol one wall over cannot see
-    // the fight. One walking away from both and already outside its real reach of
-    // both is not a threat at all. A boss parked on its spot never qualifies; the
-    // room-aggro skirt keeps the fight away from it instead.
+    // the fight. One walking away from both — while a walking target is not
+    // walking at it — and already outside its real reach of both is not a threat
+    // at all. A boss parked on its spot never qualifies; the room-aggro skirt keeps
+    // the fight away from it instead.
+    //
+    // `target` may be a BOSS (the boss engage, DungeonClearEngageBossAction): then
+    // `camp` is where the raid stands, and the boss itself and its formation are
+    // never threats, so a patrolling boss (Geddon, Lucifron) is held only for the
+    // OTHER patrols around him.
     //
     // Same exclusions as TargetInsideBystanderPack, deliberately without its
     // PullEnRouteAvoid / sweep arming: this is armed by PullPatrolGuard alone

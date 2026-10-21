@@ -331,6 +331,58 @@ namespace
         { 409, 12118, 100.0f, { 11671 }, false, 0.0f, 0.0f,
           /*pullOutRadius*/ 6.0f, /*skirtRadius*/ 40.0f },
 
+        // Molten Core (409): Magmadar. No scripted room pull; his hall holds two
+        // Core Hound packs, 56648 (27.5-52.4yd from his spawn, 1144.6,-1020.5) and
+        // 56651 (45.9-70.3yd), most of them wandering 5yd, and Panic fears the raid
+        // 45yd in every direction, into whatever still stands there. radius 70 holds
+        // every member of both (the 56651 leader at 70.3 is the one that can step
+        // out; his pack stays in, so the room never reads clear around him) and
+        // stops short of pack 56639 (72.3yd on, Lucifron's row clears it).
+        // pullOutRadius 15: the nearest hound (56647, 27.5yd, to 22.5 with its
+        // wander) is inside his computed ~30yd exclusion, which would leave it to the
+        // boss pull; 15 keeps it clearable and forces the drag-to-camp pull. Every
+        // hound is linked-respawn to him, which only stops a dead hound coming back
+        // while he lives. Whitelist = Core Hounds (his own Ancient Core Hounds and
+        // Lava Surgers patrol elsewhere; the patrol guard holds for those).
+        { 409, 11982, 70.0f, { 11671 }, false, 0.0f, 0.0f,
+          /*pullOutRadius*/ 15.0f, /*skirtRadius*/ 40.0f },
+
+        // Molten Core (409): Gehennas. No scripted room pull; his two Flamewakers
+        // stand 8-10yd from him (his adds, not whitelisted), the trash around him
+        // does not: from his spawn (898.1,-545.9) a Firelord at 23.5yd, a Lava
+        // Annihilator 41.8, a Molten Destroyer 48.8 paired with a Giant at 56.4, a
+        // wandering Firelord at 60.0, a Giant at 69.0 paired with one at 75.0 and a
+        // wandering Annihilator at 72.7 (+5yd). 2026-10 logs had ten trash join the
+        // Gehennas pull. radius 80 takes all of them and stops short of the
+        // wandering Firelord at 85.2 (80.2 at its nearest). Magmadar's patrolling
+        // Ancient Core Hounds pass 16-29yd from him and are taken whenever they
+        // walk into the room. pullOutRadius 15: the 23.5yd Firelord is inside his
+        // computed ~30yd exclusion and would otherwise come with him; 15 keeps it
+        // clearable (the Flamewakers stay out by the whitelist) and forces the
+        // drag-to-camp pull. skirtRadius 35, as Garr's. Most of this trash is
+        // linked-respawn to him, which does not matter to the clear: a dead linked
+        // mob only stays dead while he lives.
+        { 409, 12259, 80.0f, { 11668, 11665, 11659, 11658, 11673 }, false, 0.0f, 0.0f,
+          /*pullOutRadius*/ 15.0f, /*skirtRadius*/ 35.0f },
+
+        // Molten Core (409): Shazzrah. No scripted room pull, and he Blinks to the
+        // raid, so his fight goes wherever it stands. He walks a 35yd loop (path
+        // 566080, up to 9yd from his spawn 587.3,-802.0); measured over that loop the
+        // trash west of him is a Flameguard at 28.3-39.1yd, a Lava Reaver at
+        // 34.7-45.3, then Firewalkers, Lava Elementals and Flameguards at 40.3-65.9,
+        // a third of them wandering 5yd. The next ones (72.1 and 76.5-5) never come
+        // inside 70, so radius 70 holds the group whole from anywhere on the loop.
+        // pullOutRadius 15: the Flameguard (23.3 at its nearest) and the Reaver are
+        // inside his computed ~30yd exclusion; 15 keeps them clearable and forces
+        // the drag-to-camp pull. skirtRadius 40 keeps the dragged packs clear of the
+        // loop as well as his aggro. All of it is linked-respawn to Baron Geddon,
+        // whom the roster now kills first (MoltenCoreEvents.cpp), not to Shazzrah.
+        // Ancient Core Hound 56670 (one of Magmadar's) patrols a route passing 17yd
+        // from his spawn: whitelisted as at Garr and Gehennas, so it is cleared
+        // whenever it walks into the room rather than into the fight.
+        { 409, 12264, 70.0f, { 11667, 12100, 11666, 12076, 11673 }, false, 0.0f, 0.0f,
+          /*pullOutRadius*/ 15.0f, /*skirtRadius*/ 40.0f },
+
         // Blackwing Lair (469): Firemaw. No scripted room pull; his floor is the
         // goblin workshop. From his spawn (84572, -7520.2,-1025.8,449.1) there are
         // 22 mobs 22.1-35.2yd out on his own floor — 16 Blackwing Technicians, 4

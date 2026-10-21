@@ -206,6 +206,17 @@ struct DcApproachState
     Position   chaseOrigin;          // where the TANK stood then (gap origin)
     uint32     chaseHoldSince  = 0;  // getMSTime() the current hold began; 0 = not holding
 
+    // Patrol guard at the BOSS engage (DungeonClearEngageBossAction, PullPatrolGuard).
+    // The trash pull keeps its hold budget on DcPullContext::patrolWaitSince; a boss
+    // engage is not a pull, so it keeps its own here, on the same
+    // DungeonClearMath::ShouldHoldForPatrol contract (latch, soft/hard budget).
+    // `bossPatrolCommit*` is the go: once the guard has let the engage through, the
+    // walk-in is not re-held for DC_BOSS_PATROL_COMMIT_MS — stopping the tank halfway
+    // in would leave it inside the boss's aggro, the pull started anyway.
+    uint32     bossPatrolWaitSince = 0;  // getMSTime() the boss hold began; 0 = not holding
+    ObjectGuid bossPatrolCommitGuid;     // boss the guard last let through
+    uint32     bossPatrolCommitMs  = 0;  // getMSTime() it did
+
     // Mid-glide hazard probe (Advance). While a continuous escort spline is in
     // flight the hop ladder short-circuits (the ride outranks everything), so a
     // PATROL can wander into the committed window after launch unobserved. The
@@ -385,6 +396,9 @@ struct DcApproachState
         chaseAnchor         = Position();
         chaseOrigin         = Position();
         chaseHoldSince      = 0;
+        bossPatrolWaitSince = 0;
+        bossPatrolCommitGuid.Clear();
+        bossPatrolCommitMs  = 0;
         glideHazardProbeMs  = 0;
         glideHazardIgnore.Clear();
         doorStallGuid.Clear();

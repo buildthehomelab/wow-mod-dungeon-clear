@@ -484,12 +484,24 @@ namespace DungeonClearMath
     bool IsPatrolMover(bool selfWaypoint, bool leaderWaypoint, bool isBoss,
                        bool bossWanders, bool movingNow);
     // Is the candidate part of the pack being pulled (so never a threat to it)?
-    // Same formation; a creature_linked_respawn partner; or, when NEITHER is in a
-    // formation, anything within `packRadius` (loose packs of individual waypoint
-    // movers). A formation-less mob near a FORMATION pack is a lone patrol passing
-    // by, and Lucifron's own formation is never the hounds' — those stay threats.
+    // Same formation; or, when NEITHER is in a formation, anything within
+    // `packRadius` (loose packs of individual waypoint movers). A formation-less
+    // mob near a FORMATION pack is a lone patrol passing by, and Lucifron's own
+    // formation is never the hounds' — those stay threats.
+    //
+    // A BOSS (`candIsBoss`) is a packmate by formation only (Garr's Firesworn,
+    // Lucifron's Protectors): Baron Geddon walking within 12yd of a pack is the
+    // threat, not part of it. A creature_linked_respawn partner counts only when it
+    // does not move on its own (`candMoves`, IsPatrolMover) and stands within
+    // `packRadius`. creature_linked_respawn is a RESPAWN dependency: Molten Core
+    // ties nearly all its trash to a boss (Geddon 30, Gehennas 21, Garr 20,
+    // Lucifron 47 Flame Imps, Magmadar every hound and Surger), so treating a link
+    // as "pulls together" made every patrolling boss, and Magmadar's patrolling
+    // Ancient Core Hounds and Lava Surgers, invisible to the guard whenever its
+    // own linked trash was pulled.
     bool IsPatrolPackmate(bool sameFormation, bool targetInFormation,
                           bool candInFormation, bool linkedRespawn,
+                          bool candIsBoss, bool candMoves,
                           float distToTarget, float packRadius);
     // Walking away: the spline destination is no closer than the creature is now.
     inline bool IsReceding(float distNow, float distAtDestination)

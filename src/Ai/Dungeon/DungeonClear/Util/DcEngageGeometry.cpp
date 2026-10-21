@@ -710,25 +710,30 @@ DcEngageGeometry::PatrolThreat DcEngageGeometry::PatrolThreatNear(Player* bot,
 
         CreatureGroup const* grp = c->GetFormation();
         float const toTarget = target->GetExactDist2d(c);
-        ObjectGuid const candDb = dbGuid(c);
-        bool const linked = targetCreature &&
-                            ((targetLinked && targetLinked == candDb) ||
-                             sObjectMgr->GetLinkedRespawnGuid(candDb) == targetDb);
-        if (DungeonClearMath::IsPatrolPackmate(
-                targetFormation && grp && grp->GetId() == targetFormation,
-                targetFormation != 0u, grp != nullptr, linked, toTarget, kPackRadius))
-            continue;
 
         // Does it move on its own? A formation follower inherits its leader's
         // route, so Lucifron's Protectors count as patrollers with him.
         Creature const* const leader = grp ? grp->GetLeader() : nullptr;
         bool const boss = DcTargeting::IsDungeonBossEntry(ctx, c->GetEntry()) ||
                           c->isWorldBoss();
-        if (!DungeonClearMath::IsPatrolMover(
-                c->GetDefaultMovementType() == WAYPOINT_MOTION_TYPE,
-                leader && leader != c &&
-                    leader->GetDefaultMovementType() == WAYPOINT_MOTION_TYPE,
-                boss, c->GetDefaultMovementType() == RANDOM_MOTION_TYPE, c->isMoving()))
+        bool const mover = DungeonClearMath::IsPatrolMover(
+            c->GetDefaultMovementType() == WAYPOINT_MOTION_TYPE,
+            leader && leader != c &&
+                leader->GetDefaultMovementType() == WAYPOINT_MOTION_TYPE,
+            boss, c->GetDefaultMovementType() == RANDOM_MOTION_TYPE, c->isMoving());
+
+        // Part of the pack? A boss only by formation, and a respawn link never
+        // vouches for a mover — see IsPatrolPackmate for the Molten Core links.
+        ObjectGuid const candDb = dbGuid(c);
+        bool const linked = targetCreature &&
+                            ((targetLinked && targetLinked == candDb) ||
+                             sObjectMgr->GetLinkedRespawnGuid(candDb) == targetDb);
+        if (DungeonClearMath::IsPatrolPackmate(
+                targetFormation && grp && grp->GetId() == targetFormation,
+                targetFormation != 0u, grp != nullptr, linked, boss, mover, toTarget,
+                kPackRadius))
+            continue;
+        if (!mover)
             continue;
 
         // In reach of what it can SEE: a patrol one wall over neither notices the
@@ -757,6 +762,16 @@ DcEngageGeometry::PatrolThreat DcEngageGeometry::PatrolThreatNear(Player* bot,
             Position const destPos(dest.x, dest.y, dest.z);
             receding = DungeonClearMath::IsReceding(toTarget, target->GetExactDist2d(&destPos)) &&
                        (!camp || DungeonClearMath::IsReceding(toCamp, camp->GetExactDist2d(&destPos)));
+        }
+        // ...and the target not walking at IT. A patrolling target (Baron Geddon
+        // walking his loop down onto Shazzrah's) closes the gap as surely as the
+        // patrol walking at the target does.
+        if (receding && target->isMoving() && target->movespline &&
+            !target->movespline->Finalized())
+        {
+            G3D::Vector3 const dest = target->movespline->CurrentDestination();
+            Position const destPos(dest.x, dest.y, dest.z);
+            receding = DungeonClearMath::IsReceding(toTarget, c->GetExactDist2d(&destPos));
         }
         // ...and already outside its real (unpadded) reach of both: by the time
         // the pull lands it is further still. The release a human times — "he's

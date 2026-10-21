@@ -439,6 +439,14 @@ bool DcPullPlanner::ClassifyPullAdvanced(PlayerbotAI* botAI, Unit* target,
     // Stage 2: linked respawn (secondary). Only bridges two candidates when at
     // least one carries no formation pack yet, and never overwrites an existing
     // formation pack — formations stay authoritative.
+    //
+    // NOTE: creature_linked_respawn is keyed by the DB guid (entry + spawn id), and
+    // this looks it up by the LIVE guid, whose counter is not the spawn id, so in
+    // practice it never matches and this stage is inert. Do not "fix" it to the DB
+    // guid without also refusing links to bosses: Molten Core links nearly all its
+    // trash to a boss (Geddon 30, Gehennas 21, Lucifron 47 Flame Imps), which would
+    // fold the boss into the pack of any of his trash in range. See
+    // DungeonClearMath::IsPatrolPackmate.
     for (std::size_t i = 0; i < hostiles.size(); ++i)
     {
         Creature* c = hostiles[i]->ToCreature();

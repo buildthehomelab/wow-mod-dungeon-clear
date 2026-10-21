@@ -709,6 +709,11 @@ inline constexpr DcSettingDef kDcSettings[] =
     // never moves is not waited on (it will be there in 30s too): its room-aggro
     // row / skirt keeps the fight away from it instead.
     //
+    // The BOSS engage is guarded too (DungeonClearEngageBossAction), on its own
+    // budget, with the tank's standoff as the camp: Molten Core 2026-10, Baron
+    // Geddon's loop brought him into the Shazzrah pull. A patrolling boss is held
+    // only for the other patrols around him, never for himself or his formation.
+    //
     // RAID-only by default: a raid fight lasts long enough for any patrol to walk
     // into it, and a raid boss joining a trash pull is a wipe. Dungeons keep the
     // estimate-only patrol-wait.

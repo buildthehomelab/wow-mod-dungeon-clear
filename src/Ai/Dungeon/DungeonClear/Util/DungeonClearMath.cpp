@@ -339,11 +339,17 @@ bool DungeonClearMath::IsPatrolMover(bool selfWaypoint, bool leaderWaypoint, boo
 
 bool DungeonClearMath::IsPatrolPackmate(bool sameFormation, bool targetInFormation,
                                         bool candInFormation, bool linkedRespawn,
+                                        bool candIsBoss, bool candMoves,
                                         float distToTarget, float packRadius)
 {
-    if (sameFormation || linkedRespawn)
+    if (sameFormation)
         return true;
-    return !targetInFormation && !candInFormation && distToTarget <= packRadius;
+    if (candIsBoss)
+        return false;
+    bool const inPackRadius = distToTarget <= packRadius;
+    if (linkedRespawn && !candMoves && inPackRadius)
+        return true;
+    return !targetInFormation && !candInFormation && inPackRadius;
 }
 
 float DungeonClearMath::DistToClosedRoute2D(float px, float py,

@@ -40,9 +40,19 @@ TEST(DcMoltenCoreTest, RosterAppendsTheFinaleInOrder)
         BossRosterRegistry::Apply(kMap, DcDiffKey::Raid(0), Statics());
     ASSERT_EQ(out.size(), 11u);
 
-    // The eight statics keep their derived order...
+    // The eight statics keep their derived order, but for Baron Geddon (bit 5)
+    // ahead of Shazzrah (bit 4): Geddon's patrol loop runs past Shazzrah.
+    uint32 const order[] = {0, 1, 2, 3, 5, 4, 6, 7};
     for (uint32 i = 0; i < 8; ++i)
-        EXPECT_EQ(out[i].encounterIndex, i) << i;
+        EXPECT_EQ(out[i].encounterIndex, order[i]) << i;
+    EXPECT_EQ(out[4].entry, 12056u);  // Baron Geddon
+    EXPECT_EQ(out[5].entry, 12264u);  // Shazzrah
+    // Only the order key moves; the kill bits stay the DBC's.
+    EXPECT_EQ(out[4].encounterIndex, 5u);
+    EXPECT_EQ(out[5].encounterIndex, 4u);
+    EXPECT_LT(BossOrderKey(out[4]), BossOrderKey(out[5]));
+    EXPECT_GT(BossOrderKey(out[4]), BossOrderKey(out[3]));
+    EXPECT_LT(BossOrderKey(out[5]), BossOrderKey(out[6]));
 
     // ...then Majordomo, the summon objective, and Ragnaros.
     EXPECT_EQ(out[8].entry, 12018u);
