@@ -1155,8 +1155,13 @@ bool DungeonClearPullAction::Execute(Event /*event*/)
             // passes 9-12yd from three of the hound packs). Hold the tag until it
             // walks off, on the same one-per-pull PullPatrolWaitSec budget, so it can
             // never stall the run. Pull-backs and scripted stages are authored plans
-            // with their own timing, and are left alone.
-            if (pull.scriptedStage < 0 && !pull.bossPullback)
+            // with their own timing, and are left alone, unless the stage's row asks
+            // for the guard (ScriptedPullStage::patrolGuard: a patrol it can't kill
+            // first, BWL's Firemaw).
+            ScriptedPullStage const* const guardedStage =
+                pull.scriptedStage >= 0 ? ScriptedPullRegistry::Find(bot->GetMapId(), pull.scriptedStage)
+                                        : nullptr;
+            if ((pull.scriptedStage < 0 || (guardedStage && guardedStage->patrolGuard)) && !pull.bossPullback)
             {
                 Unit* const packNow = DcTargeting::GetPullTarget(botAI);
                 DcEngageGeometry::PatrolThreat const guard =

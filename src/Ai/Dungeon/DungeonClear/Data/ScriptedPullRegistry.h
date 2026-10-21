@@ -283,6 +283,20 @@ struct ScriptedPullStage
     {
         return avoidX != 0.0f || avoidY != 0.0f || avoidZ != 0.0f;
     }
+
+    // Hold the tag for a PATROL, as an ordinary pull does (PullPatrolGuard /
+    // PullPatrolWaitSec, DcEngageGeometry::PatrolThreatNear), instead of trusting the
+    // row's own timing.
+    //
+    // Off by default: a row is an authored plan, and the rooms the first rows were
+    // written for have no patrol the plan doesn't already kill as a stage of its own.
+    // Blackwing Lair's Technician halls have one it can't: Firemaw walks waypoint path
+    // 845720 from 40yd east of Broodlord's spawn, through the Wyrmguard pack at
+    // (-7466, -987), up the ramp to the 465 tier and back, past every pack on the way.
+    // He is the boss the rows clear the way to, so he can't be a stage; the row waits
+    // for him to walk off instead. Live (the 10/21 run): a pack tagged in his path had
+    // Firemaw in the fight 41s later, and the next pack 33s after that.
+    bool patrolGuard{false};
 };
 
 // Vertical tolerance, in yards, for the arm-range test (a bot on the room's floor
