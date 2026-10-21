@@ -1353,6 +1353,74 @@ std::vector<G3D::Vector3> DcTargeting::ActiveRoomPatrolRoute(Player* bot, AiObje
         return {};
     return DcEngageGeometry::PatrolRouteOf(GetLiveBoss(bot, ctx, next->entry));
 }
+namespace
+{
+    // The bosses on a raid map that walk a waypoint route (their own, or their
+    // formation leader's), with that route. Which bosses patrol and where never
+    // changes, so the map's creature store is scanned once per instance every
+    // kPatrolBossesFreshMs (a boss that respawns is picked up again), not on every
+    // camp search; whether each is alive and idle is read live. Map updates move
+    // between threads, so each keeps its own copy.
+    struct PatrolBoss
+    {
+        ObjectGuid guid;
+        std::vector<G3D::Vector3> route;
+    };
+    constexpr uint32 kPatrolBossesFreshMs = 10000;
+
+    std::vector<PatrolBoss> const& PatrolBossesOf(Map* map, AiObjectContext* ctx)
+    {
+        struct Cached
+        {
+            uint32 ms = 0;
+            std::vector<PatrolBoss> bosses;
+        };
+        // By map and instance: a freed instance id is handed out again.
+        thread_local std::unordered_map<uint64, Cached> tCache;
+        uint32 const now = getMSTime();
+        Cached& cached = tCache[(uint64(map->GetId()) << 32) | map->GetInstanceId()];
+        if (cached.ms && getMSTimeDiff(cached.ms, now) < kPatrolBossesFreshMs)
+            return cached.bosses;
+        cached.ms = now ? now : 1;
+        cached.bosses.clear();
+        for (auto const& kv : map->GetCreatureBySpawnIdStore())
+        {
+            Creature* c = kv.second;
+            if (!c || (!DcTargeting::IsDungeonBossEntry(ctx, c->GetEntry()) && !c->IsDungeonBoss() &&
+                       !c->isWorldBoss()))
+                continue;
+            std::vector<G3D::Vector3> route = DcEngageGeometry::PatrolRouteOf(c);
+            if (!route.empty())
+                cached.bosses.push_back({c->GetGUID(), std::move(route)});
+        }
+        return cached.bosses;
+    }
+}
+std::vector<std::vector<G3D::Vector3>> DcTargeting::BossPatrolRoutesNear(
+    Player* bot, AiObjectContext* ctx, Position const& near, float range, Unit const* except)
+{
+    std::vector<std::vector<G3D::Vector3>> routes;
+    if (!bot || !ctx)
+        return routes;
+    // Raids only: a raid trash fight lasts long enough for any loop to come round,
+    // and the 5-man pulls were tuned without it.
+    Map* map = bot->GetMap();
+    if (!map || !map->IsRaid())
+        return routes;
+
+    for (PatrolBoss const& boss : PatrolBossesOf(map, ctx))
+    {
+        Creature* c = map->GetCreature(boss.guid);
+        if (!c || c == except || !c->IsAlive() || c->IsInCombat() || !bot->IsHostileTo(c))
+            continue;
+        if (DungeonClearMath::DistToClosedRouteOnFloor2D(near.GetPositionX(), near.GetPositionY(),
+                                                         near.GetPositionZ(), boss.route,
+                                                         DC_Z_LEVEL_TOLERANCE) > range)
+            continue;
+        routes.push_back(boss.route);
+    }
+    return routes;
+}
 RoomAggroBoss const* DcTargeting::ActiveRoomCampBox(Player* bot, AiObjectContext* ctx)
 {
     if (!bot || !ctx)

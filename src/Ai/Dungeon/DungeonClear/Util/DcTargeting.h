@@ -307,6 +307,19 @@ public:
     // keep their skirt clearance from this whole route as well. Leader/room-scoped.
     static std::vector<G3D::Vector3> ActiveRoomPatrolRoute(Player* bot, AiObjectContext* ctx);
 
+    // The closed waypoint routes of every patrolling boss on the bot's (raid) map
+    // that is alive, hostile and not fighting, and whose route passes within `range`
+    // yd of `near` on its floor (DungeonClearMath::DistToClosedRouteOnFloor2D);
+    // never `except`. ActiveRoomPatrolRoute covers only the boss whose room is being
+    // pre-cleared; a camp fight outlasts any boss's loop that comes near it (Baron
+    // Geddon's, ~554yd, passes Shazzrah and the trash around him). Which bosses
+    // patrol is looked up from the map's creatures once per instance every 10 s.
+    static std::vector<std::vector<G3D::Vector3>> BossPatrolRoutesNear(Player* bot,
+                                                                       AiObjectContext* ctx,
+                                                                       Position const& near,
+                                                                       float range,
+                                                                       Unit const* except);
+
     // The row of the room-aggro boss currently being pre-cleared when it carries
     // a camp box (RoomAggroBoss::hasCampBox), else nullptr. The advanced-pull camp
     // search rejects every candidate outside that box, so the skirt-widened drag

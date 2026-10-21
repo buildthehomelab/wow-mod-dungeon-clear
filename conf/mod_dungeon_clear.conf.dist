@@ -890,6 +890,12 @@ DungeonClear.PullSetback = 25.0
 #        (non-pulled) pack, so fighting at camp can't aggro a neighbour. The camp
 #        is first placed PullSetback yards back; if another pack is still within
 #        this radius the tank walks further back (up to PullMaxDrag) until clear.
+#        In a raid the camp keeps the same clearance from the whole route of any
+#        patrolling boss, not yet fighting, whose loop passes within 100 yards of
+#        the pack (plus the drag) on its floor (Molten Core: Baron Geddon's
+#        ~554-yard loop): the fight at camp lasts long enough for him to come
+#        round. A pack on the route itself, with no clear point within
+#        PullMaxDrag, still relies on PullPatrolGuard's timing.
 #
 #        Default: 25.0
 #
