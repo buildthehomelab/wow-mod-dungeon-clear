@@ -90,8 +90,9 @@ void RegisterMoltenCoreEvents(std::vector<DungeonEvent>& out)
 {
     // Summon Ragnaros: muster the raid at the anchor, dwell, gossip the
     // friendly Majordomo (option 0 through 4093 -> 4109 -> 4108, see above),
-    // then hold through the ~48s scripted intro until Ragnaros is a live unit. He zone-pulls the raid himself when the RP ends, which arms
-    // the boss stand-down; the boss anchor after this objective owns the rest.
+    // then hold through the ~48s scripted intro until Ragnaros is a live unit.
+    // He zone-pulls the raid himself when the RP ends, which arms the boss
+    // stand-down; the boss anchor after this objective owns the rest.
     DungeonEvent ev;
     ev.mapId = kMapId;
     ev.id = kEventSummonRagnaros;
