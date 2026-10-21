@@ -330,20 +330,39 @@ bool DungeonClearMath::ShouldHoldForPatrol(bool contended, bool closing,
 }
 
 bool DungeonClearMath::IsPatrolMover(bool selfWaypoint, bool leaderWaypoint, bool isBoss,
-                                     bool bossWanders, bool movingNow)
+                                     bool bossWanders, bool movingNow, float bossRoam,
+                                     float bossReach)
 {
-    if (selfWaypoint || leaderWaypoint)
-        return true;
-    return isBoss && (bossWanders || movingNow);
+    if (!isBoss)
+        return selfWaypoint || leaderWaypoint;
+    if (selfWaypoint || leaderWaypoint || bossWanders)
+        return bossRoam > bossReach;
+    return movingNow;
+}
+
+float DungeonClearMath::BossRoamRadius2D(float hx, float hy,
+                                         std::vector<G3D::Vector3> const& route,
+                                         float wanderDist)
+{
+    float roam = std::max(wanderDist, 0.0f);
+    for (G3D::Vector3 const& n : route)
+        roam = std::max(roam, std::hypot(n.x - hx, n.y - hy));
+    return roam;
 }
 
 bool DungeonClearMath::IsPatrolPackmate(bool sameFormation, bool targetInFormation,
                                         bool candInFormation, bool linkedRespawn,
+                                        bool candIsBoss, bool candMoves,
                                         float distToTarget, float packRadius)
 {
-    if (sameFormation || linkedRespawn)
+    if (sameFormation)
         return true;
-    return !targetInFormation && !candInFormation && distToTarget <= packRadius;
+    if (candIsBoss)
+        return false;
+    bool const inPackRadius = distToTarget <= packRadius;
+    if (linkedRespawn && !candMoves && inPackRadius)
+        return true;
+    return !targetInFormation && !candInFormation && inPackRadius;
 }
 
 float DungeonClearMath::DistToClosedRoute2D(float px, float py,

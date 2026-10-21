@@ -481,15 +481,40 @@ namespace DungeonClearMath
     // waypoint-moving formation leader (Lucifron's Protectors), or a boss that
     // wanders or is walking right now. A boss parked on its spot is NOT: waiting
     // does not move it, so it is the room-aggro skirt's problem, not the guard's.
+    //
+    // A boss with DB movement (waypoint path, formation leader's path, random
+    // wander) counts only when that movement takes him OUT of his own aggro reach
+    // (`bossRoam` > `bossReach`, BossRoamRadius2D): Lucifron's loop runs 48yd from
+    // his spawn and Baron Geddon's 238yd, but Shazzrah's 35yd circle stays within 11yd
+    // and Garr wanders 10yd. Those two are where they always are, and holding every
+    // pull in their own rooms for them only burned the patrol budget. A boss with no
+    // DB movement counts while he is walking (a scripted walk).
     bool IsPatrolMover(bool selfWaypoint, bool leaderWaypoint, bool isBoss,
-                       bool bossWanders, bool movingNow);
+                       bool bossWanders, bool movingNow, float bossRoam, float bossReach);
+    // How far a creature's DB movement takes it from its spawn (hx, hy): the
+    // farthest node of its patrol `route` (closed or not), or its random
+    // `wanderDist`, whichever is larger. 0 for a creature that stands still.
+    float BossRoamRadius2D(float hx, float hy, std::vector<G3D::Vector3> const& route,
+                           float wanderDist);
     // Is the candidate part of the pack being pulled (so never a threat to it)?
-    // Same formation; a creature_linked_respawn partner; or, when NEITHER is in a
-    // formation, anything within `packRadius` (loose packs of individual waypoint
-    // movers). A formation-less mob near a FORMATION pack is a lone patrol passing
-    // by, and Lucifron's own formation is never the hounds' — those stay threats.
+    // Same formation; or, when NEITHER is in a formation, anything within
+    // `packRadius` (loose packs of individual waypoint movers). A formation-less
+    // mob near a FORMATION pack is a lone patrol passing by, and Lucifron's own
+    // formation is never the hounds' — those stay threats.
+    //
+    // A BOSS (`candIsBoss`) is a packmate by formation only (Garr's Firesworn,
+    // Lucifron's Protectors): Baron Geddon running within 12yd of a pack is the
+    // threat, not part of it. A creature_linked_respawn partner counts only when it
+    // does not move on its own (`candMoves`, IsPatrolMover) and stands within
+    // `packRadius`. creature_linked_respawn is a RESPAWN dependency: Molten Core
+    // ties nearly all its trash to a boss (Geddon 30, Gehennas 21, Garr 20,
+    // Lucifron 47 Flame Imps, Magmadar every hound and Surger), so treating a link
+    // as "pulls together" made every patrolling boss, and Magmadar's patrolling
+    // Ancient Core Hounds and Lava Surgers, invisible to the guard whenever its
+    // own linked trash was pulled.
     bool IsPatrolPackmate(bool sameFormation, bool targetInFormation,
                           bool candInFormation, bool linkedRespawn,
+                          bool candIsBoss, bool candMoves,
                           float distToTarget, float packRadius);
     // Walking away: the spline destination is no closer than the creature is now.
     inline bool IsReceding(float distNow, float distAtDestination)

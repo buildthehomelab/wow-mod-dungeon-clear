@@ -25,6 +25,7 @@
 #include "Log.h"
 #include "Map.h"
 #include "MotionMaster.h"
+#include "MoveSpline.h"
 #include "MoveSplineInitArgs.h"
 #include "ObjectAccessor.h"
 #include "PathGenerator.h"
@@ -34,6 +35,7 @@
 #include "ServerFacade.h"
 #include "SharedDefines.h"
 #include "Ai/Dungeon/DungeonClear/DcApproachState.h"
+#include "Ai/Dungeon/DungeonClear/Data/BossAmbushRegistry.h"
 #include "Ai/Dungeon/DungeonClear/Data/BossPullbackRegistry.h"
 #include "Ai/Dungeon/DungeonClear/Data/DcEventDoorRegistry.h"
 #include "Ai/Dungeon/DungeonClear/Data/DungeonBossInfo.h"
@@ -893,6 +895,187 @@ DungeonClearAdvanceAction::Step DungeonClearAdvanceAction::TryBossNotPresentStal
         // fall through to the normal advance below
     }
     return Step::Continue;
+}
+
+// Patrolling-boss hold. Everything below chases a loaded boss's LIVE position, and
+// for a boss who walks a long loop that is wherever the loop has taken him — Baron
+// Geddon's passes 8.8yd from Shazzrah. The engage guard holds the pull itself, but
+// only once the tank is at engage range, by which time following him there has
+// walked the raid into the other boss. So while he stands by another living, idle
+// boss (DcEngageGeometry::PatrollingBossNearOtherBoss), stop where the raid is and
+// let him move on; the approach resumes when he has. For an AMBUSH boss
+// (BossAmbushRegistry) the same hold also covers the walk to the spot: while he is
+// on the stretch between the raid and the spot (within his padded aggro reach of
+// it), the raid does not walk into him. Only within DC_PATROL_BOSS_HOLD_RANGE of
+// him (further out the walk in is the wait), never in combat, and on the patrol
+// guard's budget (DungeonClearMath::ShouldHoldForPatrol, its own latch keyed by the
+// boss), so a boss who never leaves is approached after twice PullPatrolWaitSec.
+// Lucifron, the other long patroller in Molten Core, never comes within 75yd of
+// another boss. Returns before the stuck sampler, as the other holds do.
+DungeonClearAdvanceAction::Step DungeonClearAdvanceAction::TryPatrollingBossHold(AdvanceState const& st)
+{
+    DungeonBossInfo const* next = st.next;
+    Creature* const boss = st.liveBoss ? st.liveBoss : st.ambushBoss;
+    if (next->kind != DungeonAnchorKind::Boss || !boss)
+        return Step::Continue;
+
+    DcApproachState& appr = *st.appr;
+    if (appr.bossApproachWaitGuid != boss->GetGUID())
+    {
+        appr.bossApproachWaitGuid = boss->GetGUID();
+        appr.bossApproachWaitSince = 0;
+    }
+    if (bot->IsInCombat() || boss->IsInCombat())
+    {
+        appr.bossApproachWaitSince = 0;
+        return Step::Continue;
+    }
+    // Out of range: whatever was held for belonged to an earlier approach.
+    if (bot->GetExactDist2d(boss) > DC_PATROL_BOSS_HOLD_RANGE)
+    {
+        appr.bossApproachWaitSince = 0;
+        return Step::Continue;
+    }
+
+    DcEngageGeometry::BossNearBoss const byBoss =
+        DcEngageGeometry::PatrollingBossNearOtherBoss(bot, context, boss);
+
+    // Ambush: is he on the stretch between the raid and the spot? Closing unless he
+    // is running away from the raid.
+    bool onTheWay = false;
+    bool onTheWayClosing = false;
+    if (st.ambush && DcSettings::GetBool(bot, "PullPatrolGuard"))
+    {
+        std::vector<G3D::Vector3> const leg{
+            {bot->GetPositionX(), bot->GetPositionY(), bot->GetPositionZ()},
+            {st.ambush->x, st.ambush->y, st.ambush->z}};
+        float const pad = DcSettings::GetFloat(bot, "PullEnRouteMargin") +
+                          DcSettings::GetFloat(bot, "PullPatrolBuffer");
+        onTheWay = DungeonClearMath::DistToClosedRoute2D(boss->GetPositionX(),
+                                                         boss->GetPositionY(), leg) <=
+                   DcEngageGeometry::AggroReach(bot, boss, pad);
+        if (onTheWay)
+        {
+            onTheWayClosing = true;
+            if (boss->isMoving() && boss->movespline && !boss->movespline->Finalized())
+            {
+                G3D::Vector3 const dest = boss->movespline->CurrentDestination();
+                Position const destPos(dest.x, dest.y, dest.z);
+                onTheWayClosing = !DungeonClearMath::IsReceding(bot->GetExactDist2d(boss),
+                                                                bot->GetExactDist2d(&destPos));
+            }
+        }
+    }
+
+    uint32 const now = getMSTime();
+    uint32 const waitMs = uint32(DcSettings::GetFloat(bot, "PullPatrolWaitSec") * 1000.0f);
+    uint32 const heldSince = appr.bossApproachWaitSince;
+    if (!DungeonClearMath::ShouldHoldForPatrol(
+            byBoss.other != nullptr || onTheWay,
+            (byBoss.other && byBoss.closing) || onTheWayClosing, appr.bossApproachWaitSince,
+            now, waitMs, waitMs * DungeonClearMath::PatrolHoldHardFactor,
+            appr.bossApproachWaitSince))
+    {
+        if (heldSince != 0 && appr.bossApproachWaitSince == 0)
+            LOG_INFO("playerbots.dungeonclear",
+                     "[DC:{}] {} has moved on after {}ms -> approaching", bot->GetName(),
+                     next->name, getMSTimeDiff(heldSince, now));
+        return Step::Continue;
+    }
+
+    // Hold implies contended: byBoss.other or onTheWay.
+    if (heldSince == 0)
+    {
+        if (byBoss.other)
+            LOG_INFO("playerbots.dungeonclear",
+                     "[DC:{}] {} is {:.1f}yd from {} ({}) -> holding {:.1f}yd from him until "
+                     "he moves on",
+                     bot->GetName(), next->name, boss->GetExactDist2d(byBoss.other),
+                     byBoss.other->GetName(), byBoss.closing ? "closing" : "receding",
+                     bot->GetExactDist2d(boss));
+        else
+            LOG_INFO("playerbots.dungeonclear",
+                     "[DC:{}] {} is between the raid and the ambush spot ({:.1f}yd from us, "
+                     "{}) -> holding until he has passed",
+                     bot->GetName(), next->name, bot->GetExactDist2d(boss),
+                     onTheWayClosing ? "closing" : "receding");
+    }
+    DcMovement::StopBot(bot, DcMovement::Stop::Hold);
+    ClearStall(context);
+    SetPhase(context, byBoss.other ? "waiting for " + next->name + " to walk away from " +
+                                         byBoss.other->GetName()
+                                   : "waiting for " + next->name + " to run past");
+    return Step::ReturnTrue;
+}
+
+// AMBUSH (BossAmbushRegistry). In force while the boss is loaded, alive and out of
+// combat and the wait at the spot has not run out; Execute then routes to the spot
+// instead of at him. A boss seen in combat re-arms the whole thing (a wipe's re-pull
+// ambushes him again); a new boss starts a fresh clock.
+BossAmbush const* DungeonClearAdvanceAction::AmbushInForce(DcApproachState& appr,
+                                                           DungeonBossInfo const& next,
+                                                           Creature* boss)
+{
+    if (!boss || next.kind != DungeonAnchorKind::Boss)
+        return nullptr;
+    BossAmbush const* const row = BossAmbushRegistry::Find(bot->GetMapId(), next.entry);
+    if (!row)
+        return nullptr;
+    if (appr.ambushGuid != boss->GetGUID())
+    {
+        appr.ambushGuid = boss->GetGUID();
+        appr.ambushSinceMs = 0;
+        appr.ambushGaveUp = false;
+    }
+    if (!boss->IsAlive() || boss->IsInCombat() || bot->IsInCombat())
+    {
+        appr.ambushSinceMs = 0;
+        appr.ambushGaveUp = false;
+        return nullptr;
+    }
+    return appr.ambushGaveUp ? nullptr : row;
+}
+
+// The ambush hold: standing at the spot, wait for him to come round. The engage is
+// the ordinary at-boss one — TryEngageHold, ahead of this rung, parks the tank and
+// hands over the moment he is within engage range (atBoss reads the live boss) —
+// so all this does is keep the tank on the spot until then. Bounded by the row's
+// maxWaitMs from the first tick at the spot: past it the ambush gives up for this
+// approach and he is chased as before. Returns before the stuck sampler (as
+// TryEngageHold does), so a long wait never reads as a wedge.
+DungeonClearAdvanceAction::Step DungeonClearAdvanceAction::TryAmbushHold(AdvanceState const& st)
+{
+    BossAmbush const* const ambush = st.ambush;
+    if (!ambush || !st.ambushBoss)
+        return Step::Continue;
+    if (bot->GetExactDist2d(ambush->x, ambush->y) > ambush->arriveRadius ||
+        std::fabs(bot->GetPositionZ() - ambush->z) > DC_Z_LEVEL_TOLERANCE)
+        return Step::Continue;  // still walking there
+
+    DcApproachState& appr = *st.appr;
+    uint32 const now = getMSTime();
+    if (appr.ambushSinceMs == 0)
+    {
+        appr.ambushSinceMs = now;
+        LOG_INFO("playerbots.dungeonclear",
+                 "[DC:{}] ambush: at the spot for {} ({:.1f}yd from him) -> waiting for his "
+                 "loop to bring him round (up to {}s)",
+                 bot->GetName(), st.next->name, bot->GetExactDist2d(st.ambushBoss),
+                 ambush->maxWaitMs / 1000);
+    }
+    if (getMSTimeDiff(appr.ambushSinceMs, now) >= ambush->maxWaitMs)
+    {
+        appr.ambushGaveUp = true;
+        LOG_INFO("playerbots.dungeonclear",
+                 "[DC:{}] ambush: {} has not come round in {}s -> approaching him instead",
+                 bot->GetName(), st.next->name, ambush->maxWaitMs / 1000);
+        return Step::Continue;
+    }
+
+    DcMovement::StopBot(bot, DcMovement::Stop::Hold);
+    ClearStall(context);
+    SetPhase(context, "ambush: waiting for " + st.next->name + " to come round");
+    return Step::ReturnTrue;
 }
 
 // ==== Tier A — pre-path observation + effects (stuck / pursuit) ===========
@@ -2199,11 +2382,22 @@ bool DungeonClearAdvanceAction::Execute(Event /*event*/)
     // arm. Fetching the boss is the engage action's job, not the route's.
     bool const pullback =
         BossPullbackRegistry::Find(bot->GetMapId(), next->entry) != nullptr;
-    Creature* const liveBoss =
+    Creature* const loadedBoss =
         pullback ? nullptr : DcTargeting::GetLiveBoss(bot, context, next->entry);
-    float const bossX = liveBoss ? liveBoss->GetPositionX() : next->x;
-    float const bossY = liveBoss ? liveBoss->GetPositionY() : next->y;
-    float const bossZ = liveBoss ? liveBoss->GetPositionZ() : next->z;
+
+    // EXCEPTION — an AMBUSH boss (BossAmbushRegistry): one who RUNS his loop (Baron
+    // Geddon, ~16yd/s, ~35s a lap) cannot be caught, and chasing his live position
+    // drags the raid round the loop behind him, past Shazzrah. While he is loaded,
+    // idle and the wait has not run out, navigate to the row's spot on his loop
+    // instead, with the live handle suppressed so pursuit never arms; the at-boss
+    // engage (atBoss below, which reads the live boss) still fires when his loop
+    // brings him in. See TryAmbushHold.
+    BossAmbush const* const ambush =
+        loadedBoss ? AmbushInForce(appr, *next, loadedBoss) : nullptr;
+    Creature* const liveBoss = ambush ? nullptr : loadedBoss;
+    float const bossX = ambush ? ambush->x : liveBoss ? liveBoss->GetPositionX() : next->x;
+    float const bossY = ambush ? ambush->y : liveBoss ? liveBoss->GetPositionY() : next->y;
+    float const bossZ = ambush ? ambush->z : liveBoss ? liveBoss->GetPositionZ() : next->z;
     float const engageDist = bot->GetDistance(bossX, bossY, bossZ);
 
     // Hand-off distance: the boss's real aggro bubble (+reaches/margin) when it
@@ -2241,6 +2435,8 @@ bool DungeonClearAdvanceAction::Execute(Event /*event*/)
     st.engageRange = engageRange;
     st.atBoss = atBoss;
     st.appr = &appr;
+    st.ambush = ambush;
+    st.ambushBoss = ambush ? loadedBoss : nullptr;
 
     // An active submerged swim leg owns the tick outright: it drives a raw 3D
     // escort spline through a tunnel the navmesh can't model (the floor under
@@ -2277,6 +2473,10 @@ bool DungeonClearAdvanceAction::Execute(Event /*event*/)
     if (Step s = TryBetweenPullsRest(st); s != Step::Continue)
         return s == Step::ReturnTrue;
     if (Step s = TryBossNotPresentStall(st); s != Step::Continue)
+        return s == Step::ReturnTrue;
+    if (Step s = TryAmbushHold(st); s != Step::Continue)
+        return s == Step::ReturnTrue;
+    if (Step s = TryPatrollingBossHold(st); s != Step::Continue)
         return s == Step::ReturnTrue;
 
     // Bookkeeping: on a boss change wipe the per-approach counters so a stale

@@ -240,6 +240,75 @@ TEST(RoomAggroRegistryTest, MoltenCoreLucifronClearsTheHoundsOnHisPatrol)
     EXPECT_EQ(RoomAggroRegistry::Find(409, 12119), nullptr);
 }
 
+// Magmadar (Molten Core, 409): two Core Hound packs in his hall, 56648 at
+// 27.5-52.4yd from his spawn and 56651 at 45.9-70.3yd (most wander 5yd); pack 56639
+// starts at 72.3yd and belongs to Lucifron's row.
+TEST(RoomAggroRegistryTest, MoltenCoreMagmadarClearsHisHoundPacks)
+{
+    RoomAggroBoss const* mag = RoomAggroRegistry::Find(409, 11982);
+    ASSERT_NE(mag, nullptr);
+    EXPECT_FLOAT_EQ(mag->radius, 70.0f);
+    EXPECT_EQ(mag->memberEntries, (std::vector<uint32>{11671}));
+    EXPECT_FALSE(RoomAggroRegistry::IsMemberEntry(*mag, 11673));  // Ancient Core Hound: patrols
+    // The nearest hound (27.5yd, 22.5 with its wander) sits inside the computed
+    // exclusion: the pull-out radius keeps it clearable and forces the drag.
+    EXPECT_GT(mag->pullOutRadius, 0.0f);
+    EXPECT_LT(mag->pullOutRadius, 22.5f);
+    EXPECT_FLOAT_EQ(RoomAggroRegistry::SkirtOverride(409, 11982), 45.0f);
+
+    float const bossSafe = mag->pullOutRadius;
+    EXPECT_TRUE(RoomAggroRegistry::IsRoomTrash(*mag, 11671, 22.5f, bossSafe));   // 56647 wandered in
+    EXPECT_TRUE(RoomAggroRegistry::IsRoomTrash(*mag, 11671, 62.0f, bossSafe));   // 56651's pack
+    EXPECT_FALSE(RoomAggroRegistry::IsRoomTrash(*mag, 11671, 72.3f, bossSafe));  // pack 56639
+}
+
+// Gehennas (Molten Core, 409): his Flamewakers stand 8-10yd out; the trash from
+// his spawn is a Firelord at 23.5yd, Annihilator 41.8, Destroyer 48.8, Giants 56.4,
+// 69.0 and 75.0, a wandering Firelord at 60 and a wandering Annihilator at 72.7
+// (+5yd); the next wandering Firelord is at 85.2. Magmadar's Ancient Core Hound
+// patrols pass 18.5 and 27yd from him.
+TEST(RoomAggroRegistryTest, MoltenCoreGehennasClearsTheTrashAroundHim)
+{
+    RoomAggroBoss const* geh = RoomAggroRegistry::Find(409, 12259);
+    ASSERT_NE(geh, nullptr);
+    EXPECT_FLOAT_EQ(geh->radius, 80.0f);
+    EXPECT_EQ(geh->memberEntries, (std::vector<uint32>{11668, 11665, 11659, 11658, 11673}));
+    EXPECT_FALSE(RoomAggroRegistry::IsMemberEntry(*geh, 11661));  // Flamewakers: his adds
+    EXPECT_GT(geh->pullOutRadius, 9.8f);    // over the Flamewakers...
+    EXPECT_LT(geh->pullOutRadius, 23.5f);   // ...under the Firelord
+    EXPECT_FLOAT_EQ(RoomAggroRegistry::SkirtOverride(409, 12259), 35.0f);
+
+    float const bossSafe = geh->pullOutRadius;
+    EXPECT_TRUE(RoomAggroRegistry::IsRoomTrash(*geh, 11668, 23.5f, bossSafe));   // nearest Firelord
+    EXPECT_TRUE(RoomAggroRegistry::IsRoomTrash(*geh, 11673, 18.5f, bossSafe));   // hound walking past
+    EXPECT_TRUE(RoomAggroRegistry::IsRoomTrash(*geh, 11665, 77.7f, bossSafe));   // wandered Annihilator
+    EXPECT_FALSE(RoomAggroRegistry::IsRoomTrash(*geh, 11668, 80.2f, bossSafe));  // next room's Firelord
+    EXPECT_FALSE(RoomAggroRegistry::IsRoomTrash(*geh, 11661, 30.0f, bossSafe));  // a Flamewaker
+}
+
+// Shazzrah (Molten Core, 409) walks a 35yd loop (path 566080). Over that loop the
+// trash west of him is a Flameguard at 28.3-39.1yd, a Lava Reaver at 34.7-45.3 and
+// Firewalkers / Lava Elementals / Flameguards at 40.3-65.9 (a third wander 5yd);
+// the next ones never come inside 72.1 and 71.5. An Ancient Core Hound patrol
+// passes 17yd from his spawn.
+TEST(RoomAggroRegistryTest, MoltenCoreShazzrahClearsTheTrashWestOfHim)
+{
+    RoomAggroBoss const* sha = RoomAggroRegistry::Find(409, 12264);
+    ASSERT_NE(sha, nullptr);
+    EXPECT_FLOAT_EQ(sha->radius, 70.0f);
+    EXPECT_EQ(sha->memberEntries, (std::vector<uint32>{11667, 12100, 11666, 12076, 11673}));
+    EXPECT_FALSE(RoomAggroRegistry::IsMemberEntry(*sha, 12056));  // Baron Geddon
+    EXPECT_GT(sha->pullOutRadius, 0.0f);
+    EXPECT_LT(sha->pullOutRadius, 23.3f);
+    EXPECT_FLOAT_EQ(RoomAggroRegistry::SkirtOverride(409, 12264), 40.0f);
+
+    float const bossSafe = sha->pullOutRadius;
+    EXPECT_TRUE(RoomAggroRegistry::IsRoomTrash(*sha, 11667, 23.3f, bossSafe));   // Flameguard, wandered in
+    EXPECT_TRUE(RoomAggroRegistry::IsRoomTrash(*sha, 12076, 65.9f, bossSafe));   // far Elemental, far loop end
+    EXPECT_FALSE(RoomAggroRegistry::IsRoomTrash(*sha, 11667, 72.1f, bossSafe));  // next group
+    EXPECT_EQ(RoomAggroRegistry::Find(409, 12056), nullptr);  // Geddon has no row
+}
+
 // Firemaw (Blackwing Lair, 469) stands in a ring of goblin-workshop trash: 22 mobs
 // 22.1-35.2yd from his spawn (16 Technicians, 4 Warlocks, 2 Spellbinders, an
 // Overseer), the next group from 41.2 to 46.7yd, Technician 84134 at 49.2yd and

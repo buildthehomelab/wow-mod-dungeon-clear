@@ -1032,3 +1032,9 @@ AC_ADD_CONFIG_FILE("${CMAKE_CURRENT_LIST_DIR}/conf/mod_dungeon_clear.conf.dist")
 #    City as a second Explicit wing layout. The probe routes the Upper City legs
 #    from the portal and checks none crosses the Ring of Law arena floor, which
 #    is why map 230 needs no wing-tagged nav fence.)
+
+# New files added: Data/BossAmbushRegistry.{h,cpp}
+#   (Ambush bosses: a boss who RUNS his patrol loop cannot be chased, so Advance
+#    walks the raid to a hand-authored spot on the loop and waits there for him
+#    — DungeonClearAdvanceAction::TryAmbushHold. One row: Molten Core's Baron
+#    Geddon, whose ~554yd loop takes ~35s and passes 8.8yd from Shazzrah.)

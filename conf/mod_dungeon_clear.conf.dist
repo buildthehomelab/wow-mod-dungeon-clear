@@ -1281,11 +1281,20 @@ DungeonClear.PullPatrolWaitSec = 8.0
 #        does not hold — and checks again right before the advanced pull's tag.
 #        Unlike PullPatrolWait this does not depend on the pack's size: a raid fight
 #        lasts long enough for any patrol to walk into it (Molten Core: Lucifron
-#        joining a Core Hound pull). Packmates (same formation, linked respawn) and
-#        patrols with no line of sight to the pack or camp are ignored. After
-#        PullPatrolWaitSec the hold releases on the first tick the patrol is
-#        walking away, and at twice that it pulls regardless, so it can never stall
-#        the run. A boss that stands still is never waited on.
+#        joining a Core Hound pull). Packmates (same formation; a boss only by
+#        formation, and a linked respawn never for a patrol) and patrols with no
+#        line of sight to the pack or camp are ignored. After PullPatrolWaitSec the
+#        hold releases on the first tick the patrol is walking away, and at twice
+#        that it pulls regardless, so it can never stall the run. A boss that
+#        stands still is never waited on.
+#        The BOSS pull is guarded the same way, with where the raid waits as the
+#        camp (Molten Core: Baron Geddon's loop past Shazzrah, Ancient Core Hounds
+#        past Gehennas, Golemagg and Sulfuron). A patrolling boss is held only for
+#        the other patrols around him, and while his loop has him standing by
+#        another boss (Baron Geddon by Shazzrah) the raid neither chases nor pulls
+#        him. A boss counts as a patrol only when his path or wander takes him out
+#        of his own aggro reach (Lucifron, Geddon; not Garr's wander or Shazzrah's
+#        small circle).
 #        While a PATROLLING room-aggro boss's room is pre-cleared (Lucifron), the
 #        drag-to-camp camp also keeps its clearance from his whole patrol route,
 #        not just from where he stands.

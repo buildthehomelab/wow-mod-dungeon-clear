@@ -3,8 +3,11 @@
  * and/or modify it under version 3 of the License, or (at your option), any later version.
  */
 
+#include <cmath>
+
 #include "gtest/gtest.h"
 
+#include "Ai/Dungeon/DungeonClear/Data/BossAmbushRegistry.h"
 #include "Ai/Dungeon/DungeonClear/Data/DungeonEventRegistry.h"
 #include "Ai/Dungeon/DungeonClear/Overrides/BossRosterRegistry.h"
 #include "Ai/Dungeon/DungeonClear/Overrides/ObjectiveHookRegistry.h"
@@ -41,9 +44,19 @@ TEST(DcMoltenCoreTest, RosterAppendsTheFinaleInOrder)
         BossRosterRegistry::Apply(kMap, DcDiffKey::Raid(0), Statics());
     ASSERT_EQ(out.size(), 11u);
 
-    // The eight statics keep their derived order...
+    // The eight statics keep their derived order, but for Baron Geddon (bit 5)
+    // ahead of Shazzrah (bit 4): Geddon's patrol loop runs past Shazzrah.
+    uint32 const order[] = {0, 1, 2, 3, 5, 4, 6, 7};
     for (uint32 i = 0; i < 8; ++i)
-        EXPECT_EQ(out[i].encounterIndex, i) << i;
+        EXPECT_EQ(out[i].encounterIndex, order[i]) << i;
+    EXPECT_EQ(out[4].entry, 12056u);  // Baron Geddon
+    EXPECT_EQ(out[5].entry, 12264u);  // Shazzrah
+    // Only the order key moves; the kill bits stay the DBC's.
+    EXPECT_EQ(out[4].encounterIndex, 5u);
+    EXPECT_EQ(out[5].encounterIndex, 4u);
+    EXPECT_LT(BossOrderKey(out[4]), BossOrderKey(out[5]));
+    EXPECT_GT(BossOrderKey(out[4]), BossOrderKey(out[3]));
+    EXPECT_LT(BossOrderKey(out[5]), BossOrderKey(out[6]));
 
     // ...then Majordomo, the summon objective, and Ragnaros.
     EXPECT_EQ(out[8].entry, 12018u);
@@ -89,4 +102,31 @@ TEST(DcMoltenCoreTest, SummonRagnarosEventShape)
     EXPECT_TRUE(wait.wantAlive);
     // Must outlast the ~48s scripted intro.
     EXPECT_GE(wait.timeoutMs, 60000u);
+}
+
+// Baron Geddon runs his loop (path 566550, move_type 1, ~35s a lap), so the raid
+// waits for him on it instead of chasing him. The spot is on the node 17 -> node 1
+// leg at the top of his ramp, 234yd from Shazzrah (whom the loop passes 8.8yd off),
+// on another floor from Golemagg.
+TEST(DcMoltenCoreTest, GeddonIsAmbushedAtTheTopOfHisRamp)
+{
+    BossAmbush const* a = BossAmbushRegistry::Find(kMap, 12056);
+    ASSERT_NE(a, nullptr);
+    // On the leg: within a yard of the line node 17 (746.603,-966.558) -> node 1
+    // (747.547,-981.676).
+    float const dx = 747.547f - 746.603f, dy = -981.676f - -966.558f;
+    float const t = ((a->x - 746.603f) * dx + (a->y - -966.558f) * dy) / (dx * dx + dy * dy);
+    EXPECT_GT(t, 0.0f);
+    EXPECT_LT(t, 1.0f);
+    EXPECT_LT(std::hypot(746.603f + t * dx - a->x, -966.558f + t * dy - a->y), 1.0f);
+    EXPECT_GT(std::hypot(a->x - 587.303f, a->y - -801.975f), 200.0f);   // Shazzrah
+    EXPECT_GT(std::fabs(a->z - -206.762f), 20.0f);                       // Golemagg's floor
+    // Waits a lap and some, never forever.
+    EXPECT_GE(a->maxWaitMs, 35000u);
+    EXPECT_LE(a->maxWaitMs, 120000u);
+    EXPECT_GT(a->arriveRadius, 0.0f);
+
+    // Nobody else in Molten Core is ambushed; Lucifron and Shazzrah walk.
+    EXPECT_EQ(BossAmbushRegistry::Find(kMap, 12118), nullptr);
+    EXPECT_EQ(BossAmbushRegistry::Find(kMap, 12264), nullptr);
 }

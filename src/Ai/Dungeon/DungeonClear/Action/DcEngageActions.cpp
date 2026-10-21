@@ -1077,6 +1077,87 @@ bool DungeonClearEngageBossAction::Execute(Event event)
         return true;
     }
 
+    // PATROL GUARD AT THE BOSS (PullPatrolGuard, raid default). The trash pull has
+    // held for a patrol since 2026-10-16; the boss engage never did, so a patrol
+    // walking into the boss's room was pulled with him. Molten Core: Magmadar's
+    // Ancient Core Hounds and Lava Surgers patrol 14-28yd from Gehennas, Golemagg,
+    // Sulfuron, Shazzrah and Garr. Same threat test as the trash pull, with the
+    // raid's standoff (the tank) as the camp, so a patrol walking through where the
+    // raid waits holds it too; same ShouldHoldForPatrol budget, so a patrol that
+    // never leaves is pulled with after twice PullPatrolWaitSec. A patrolling boss
+    // (Geddon, Lucifron) is never his own threat, nor is his formation — but he IS
+    // held while he stands by another boss (Geddon's loop passes 8.8yd from Shazzrah;
+    // DcEngageGeometry::PatrollingBossNearOtherBoss). Never mid-fight, and never once
+    // the walk-in has been let go (DcApproachState::bossPatrolCommit*).
+    {
+        DcApproachState& appr =
+            context->GetValue<DcApproachState&>(DcKey::ApproachState)->Get();
+        // The latch belongs to one boss: never carry a spent budget to the next.
+        if (appr.bossPatrolWaitGuid != boss->GetGUID())
+        {
+            appr.bossPatrolWaitGuid = boss->GetGUID();
+            appr.bossPatrolWaitSince = 0;
+        }
+        uint32 const now = getMSTime();
+        uint32 const sinceCommit = getMSTimeDiff(appr.bossPatrolCommitMs, now);
+        bool const committed =
+            appr.bossPatrolCommitGuid == boss->GetGUID() &&
+            (sinceCommit < DC_BOSS_PATROL_COMMIT_MS ||
+             (sinceCommit < DC_BOSS_PATROL_COMMIT_MAX_MS && bot->isMoving()));
+        if (bot->IsInCombat() || boss->IsInCombat())
+        {
+            // The fight is on: whatever was held for is spent. A wipe re-pulls on a
+            // fresh budget.
+            appr.bossPatrolWaitSince = 0;
+        }
+        else if (!committed)
+        {
+            Position const raidSpot = bot->GetPosition();
+            DcEngageGeometry::PatrolThreat const guard =
+                DcEngageGeometry::PatrolThreatNear(bot, context, boss, &raidSpot);
+            DcEngageGeometry::BossNearBoss const byBoss =
+                DcEngageGeometry::PatrollingBossNearOtherBoss(bot, context, boss);
+            Creature const* const holdFor = guard.creature ? guard.creature : byBoss.other;
+            uint32 const waitMs =
+                uint32(DcSettings::GetFloat(bot, "PullPatrolWaitSec") * 1000.0f);
+            uint32 const heldSince = appr.bossPatrolWaitSince;
+            bool const wasHolding = heldSince != 0;
+            if (DungeonClearMath::ShouldHoldForPatrol(
+                    holdFor != nullptr,
+                    (guard.creature && guard.closing) || (byBoss.other && byBoss.closing),
+                    appr.bossPatrolWaitSince, now, waitMs,
+                    waitMs * DungeonClearMath::PatrolHoldHardFactor, appr.bossPatrolWaitSince))
+            {
+                // Hold implies contended, so holdFor is set.
+                if (!wasHolding)
+                    LOG_INFO("playerbots.dungeonclear",
+                             "[DC:{}] boss {}: {} (entry {}) {:.1f}yd from him, {:.1f}yd from "
+                             "the raid -> WAITING ({})",
+                             bot->GetName(), next->name, holdFor->GetName(),
+                             holdFor->GetEntry(), boss->GetExactDist2d(holdFor),
+                             bot->GetExactDist2d(holdFor),
+                             guard.creature ? "patrol" : "he is by another boss");
+                DcMovement::StopBot(bot, DcMovement::Stop::Soft);
+                ClearStall(context);
+                SetPhase(context, guard.creature
+                                      ? "waiting for " + holdFor->GetName() + " to pass"
+                                      : "waiting for " + next->name + " to walk away from " +
+                                            holdFor->GetName());
+                return true;
+            }
+            if (wasHolding)
+                LOG_INFO("playerbots.dungeonclear",
+                         "[DC:{}] boss {}: patrol hold released after {}ms -> engaging",
+                         bot->GetName(), next->name, getMSTimeDiff(heldSince, now));
+            // Let go: the budget belonged to this attempt. One that has not started
+            // the fight by the time the commit lapses (he walked off, a wipe) is
+            // guarded afresh rather than waved through on a spent latch.
+            appr.bossPatrolWaitSince = 0;
+            appr.bossPatrolCommitGuid = boss->GetGUID();
+            appr.bossPatrolCommitMs = now;
+        }
+    }
+
     if (!EngageDirect(static_cast<Unit*>(boss)))
         return false;
 

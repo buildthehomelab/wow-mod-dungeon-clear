@@ -70,6 +70,8 @@ namespace
 
     constexpr uint32 kMajordomo = 12018;
     constexpr uint32 kRagnaros  = 11502;
+    constexpr uint32 kShazzrah  = 12264;
+    constexpr uint32 kGeddon    = 12056;
 
     // molten_core.h boss-state slots.
     constexpr int32 kSlotMajordomo = 8;
@@ -149,7 +151,23 @@ void RegisterMoltenCoreRoster(std::vector<BossRosterPatch>& t)
     p.mapId = kMapId;
 
     // The eight statics keep their derived DBC order (bits 0-7 match the
-    // classic clear path). The finale slots in after them.
+    // classic clear path) but for one swap: Baron Geddon (bit 5) before
+    // Shazzrah (bit 4). Geddon RUNS a ~554yd loop (path 566550, move_type 1 on
+    // every node, ~16yd/s, ~35s a lap) from the top of his ramp down past
+    // Shazzrah, 8.8yd from his spawn, and back. Shazzrah first meant the raid
+    // waiting at Shazzrah, and fighting him, on that loop: Geddon came into the
+    // Shazzrah pull. Geddon first means he is fought at the top of his ramp,
+    // 234yd from Shazzrah: he cannot be chased, so the raid waits for him on his
+    // loop (BossAmbushRegistry) — and while he is by Shazzrah it neither chases
+    // nor pulls him (DcEngageGeometry::PatrollingBossNearOtherBoss) — and
+    // Shazzrah after him has nobody running in. Their kill bits are untouched;
+    // only the clear order key moves.
+    p.reorder = {
+        { kGeddon,   4 },
+        { kShazzrah, 5 },
+    };
+
+    // The finale slots in after them.
     p.add.push_back(MakeBoss(kMajordomo, kMapId, "Majordomo Executus",
                              kMajX, kMajY, kMajZ, /*completionFrom*/ 0,
                              /*orderOverride*/ 8, kSlotMajordomo));
