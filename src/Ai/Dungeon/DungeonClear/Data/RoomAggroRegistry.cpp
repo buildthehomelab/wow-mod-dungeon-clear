@@ -350,6 +350,27 @@ namespace
         // outside the whole ring, so no dragged pack is fought in his aggro.
         { 469, 11983, 47.0f, { 13996, 12459, 12457, 12461 }, false, 0.0f, 0.0f,
           /*pullOutRadius*/ 10.0f, /*skirtRadius*/ 40.0f },
+
+        // Blackwing Lair (469): Broodlord Lashlayer. No scripted room pull; the
+        // Suppression Room's whelp field runs right up to him. From his spawn
+        // (84387, -7574.0,-1034.4,449.3; aggro 23yd at level 60) the nearest
+        // Corrupted Whelps stand 27.8-36yd out and the rest of the field reaches
+        // past 60yd, with Death Talon Hatchers at 45-59yd and Blackwing Taskmasters
+        // at 47-52yd. Live (2026-10-20 23:02-23:03): the whelps came a few at a
+        // time and were fought where they met the raid, the fight crept east whelp
+        // by whelp, and at 23:03:23 a bot 22.4yd from him pulled him with no pull
+        // in flight. That run already had the 66yd transit standoff (#5) and the
+        // stall-fallback boss veto (#6), so this needs neither of them to fire.
+        //
+        // radius 60 takes every whelp on his floor up to the 59yd pair and the
+        // Hatcher on the ramp at 58.9yd. Whitelist = whelps, Hatchers and
+        // Taskmasters only: Firemaw's Technicians stand 23-35yd EAST of him and
+        // belong to the Firemaw row, and Razorgore's room is a floor down.
+        // pullOutRadius 20 keeps the 27.8yd whelps (inside the computed ~28yd
+        // exclusion) clearable and forces the drag-to-camp pull; skirtRadius 40
+        // fights each dragged group outside his radius with room for the ranged.
+        { 469, 12017, 60.0f, { 14022, 14023, 14024, 14025, 12468, 12458 }, false, 0.0f, 0.0f,
+          /*pullOutRadius*/ 20.0f, /*skirtRadius*/ 40.0f },
     };
 }
 

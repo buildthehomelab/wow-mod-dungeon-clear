@@ -267,6 +267,35 @@ TEST(RoomAggroRegistryTest, BlackwingLairFiremawClearsTheWorkshopRing)
     EXPECT_FALSE(RoomAggroRegistry::IsRoomTrash(*firemaw, 13996, 51.1f, bossSafe)); // the floor below
 }
 
+// Broodlord Lashlayer (Blackwing Lair, 469) stands at the end of the Suppression
+// Room's whelp field: Corrupted Whelps from 27.8yd out past 60yd, Death Talon
+// Hatchers at 45-59yd, Blackwing Taskmasters at 47-52yd. 2026-10-20 the whelps
+// were fought where they met the raid until a bot 22.4yd from him pulled him.
+// Firemaw's Technicians stand 23-35yd east of him and are not his.
+TEST(RoomAggroRegistryTest, BlackwingLairBroodlordClearsTheWhelpField)
+{
+    RoomAggroBoss const* brood = RoomAggroRegistry::Find(469, 12017);
+    ASSERT_NE(brood, nullptr);
+    EXPECT_FLOAT_EQ(brood->radius, 60.0f);
+    EXPECT_TRUE(RoomAggroRegistry::IsMemberEntry(*brood, 14022));  // red whelp
+    EXPECT_TRUE(RoomAggroRegistry::IsMemberEntry(*brood, 14025));  // bronze whelp
+    EXPECT_TRUE(RoomAggroRegistry::IsMemberEntry(*brood, 12468));  // Death Talon Hatcher
+    EXPECT_TRUE(RoomAggroRegistry::IsMemberEntry(*brood, 12458));  // Blackwing Taskmaster
+    EXPECT_FALSE(RoomAggroRegistry::IsMemberEntry(*brood, 13996)); // Firemaw's Technicians
+    EXPECT_FALSE(RoomAggroRegistry::IsMemberEntry(*brood, 12435)); // Razorgore, a floor down
+    // The nearest whelps are inside the computed ~28yd exclusion: a pull-out
+    // radius under them keeps them clearable and forces the drag-to-camp pull...
+    EXPECT_GT(brood->pullOutRadius, 0.0f);
+    EXPECT_LT(brood->pullOutRadius, 27.8f);
+    // ...and the skirt keeps each dragged group well outside his 23yd radius.
+    EXPECT_GE(RoomAggroRegistry::SkirtOverride(469, 12017), 40.0f);
+
+    float const bossSafe = brood->pullOutRadius;
+    EXPECT_TRUE(RoomAggroRegistry::IsRoomTrash(*brood, 14025, 27.8f, bossSafe));  // nearest whelp
+    EXPECT_TRUE(RoomAggroRegistry::IsRoomTrash(*brood, 12468, 58.9f, bossSafe));  // Hatcher on the ramp
+    EXPECT_FALSE(RoomAggroRegistry::IsRoomTrash(*brood, 14022, 65.6f, bossSafe)); // back of the field
+}
+
 TEST(RoomAggroRegistryTest, MechanarSepethreaHasPullOutRoom)
 {
     RoomAggroBoss const* sep = RoomAggroRegistry::Find(554, 19221);
