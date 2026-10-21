@@ -928,7 +928,7 @@ bool DcTargeting::IsStickyPullTargetValid(Player* bot, AiObjectContext* ctx, Uni
         return false;
     return true;
 }
-Unit* DcTargeting::FindNearestReachableHostile(Player* bot)
+Unit* DcTargeting::FindNearestReachableHostile(Player* bot, AiObjectContext* ctx)
 {
     if (!bot)
         return nullptr;
@@ -968,6 +968,22 @@ Unit* DcTargeting::FindNearestReachableHostile(Player* bot)
         // the creature store, so the FarTargets filter never sees it.
         if (DcNeverTargetRegistry::IsNeverTarget(bot->GetMapId(), c->GetEntry()))
             continue;
+        // Never a boss: the at-boss path (engage range, floor gate, muster) owns
+        // boss engagements, the same veto every other picker here applies. This
+        // scan had none, and it ranks the whole map by straight-line distance, so
+        // on map 469 a raid stalled in the Halls of Strife after the second Death
+        // Talon pack can nominate Broodlord Lashlayer, one floor up (~95yd 3D,
+        // 21yd above), and EngageDirect walks the tank at him. Each stall tick
+        // re-picks him, so dropping combat only leads to the next pull.
+        if (IsDungeonBossEntry(ctx, c->GetEntry()) || IsBossSummon(c) ||
+            c->IsDungeonBoss() || c->isWorldBoss())
+            continue;
+        // Nor anything the run is barred from walking up to (the corridor scan's
+        // tank-pick question; see FindBlockingTrash).
+        if (DcTargetExclusionRegistry::HasRowsFor(bot->GetMapId()) &&
+            DcTargetExclusionRegistry::IsExcluded(bot, bot->GetMapId(), c->GetEntry(),
+                                                  /*forTank*/ true))
+            continue;
         candidates.emplace_back(dist, c);
     }
     std::sort(candidates.begin(), candidates.end(),
@@ -976,6 +992,12 @@ Unit* DcTargeting::FindNearestReachableHostile(Player* bot)
     for (auto const& pair : candidates)
     {
         Creature* c = pair.second;
+        // A mob on another floor needs a real route that arrives on its level
+        // without a huge detour. IsReachable alone accepts a partial path, and a
+        // Player is handed one even straight up through a ceiling, so everything
+        // overhead read as reachable.
+        if (!DcEngageGeometry::IsLevelReachable(bot, c))
+            continue;
         if (DcEngageGeometry::IsReachable(bot, c->GetPositionX(), c->GetPositionY(), c->GetPositionZ()))
             return c;
     }
