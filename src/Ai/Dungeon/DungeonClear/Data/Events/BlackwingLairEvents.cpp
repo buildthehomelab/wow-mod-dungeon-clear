@@ -8,6 +8,7 @@
 #include "Ai/Dungeon/DungeonClear/Data/Events/DungeonRosterBuilders.h"
 #include "Ai/Dungeon/DungeonClear/Settings/DcSettings.h"
 #include "Ai/Dungeon/DungeonClear/Util/DcLeaderSignal.h"
+#include "Ai/Dungeon/DungeonClear/Overrides/ObjectiveHookRegistry.h"
 #include "Ai/Dungeon/DungeonClear/Util/DcRaidMusterDecision.h"
 #include "Ai/Dungeon/DungeonClear/Util/DcRun.h"
 
@@ -290,17 +291,8 @@ namespace
 
     // DUE while Lord Victor Nefarius is still waiting to be talked to.
     //
-    // Three gates, and deliberately NOT the muster gate the other two opening
-    // events use. The muster arms only for a BOSS anchor whose boss the engage
-    // rung can RESOLVE (a live creature), and the anchor here is Nefarian, who
-    // does not exist yet and will not until 42 drakonids have died. Waiting on a
-    // muster that can never arm would mean never starting the encounter at all.
-    //
-    // What replaces it is the anchor itself: the raid walks to Nefarian's landing
-    // as one body under the ordinary advance before this can be due from there,
-    // and the party-spread machinery keeps it together on the way. That is a
-    // weaker readiness claim than a muster and it is the honest one — this event
-    // starts a fight, it does not fight it.
+    // The event runs its own muster before gossip: Nefarian does not exist yet,
+    // so the ordinary engage rung cannot prepare the raid for this opener.
     //
     //   1. the map, and the leader's proximity to VICTOR (120yd: past the raid
     //      anchor 86yd from him, short of the lair door 149yd from him, and the
@@ -735,7 +727,7 @@ void RegisterBlackwingLairEvents(std::vector<DungeonEvent>& out)
     // suppression lifts on its own the moment he dies and NextDungeonBoss
     // advances past him.
     //
-    // ONE STEP. The gossip chain is three menus deep (21330 -> 21331 -> 21332) and
+    // The gossip chain is three menus deep (21330 -> 21331 -> 21332) and
     // SelectGossip drills it from the single authored option 0; the click flips
     // Victor hostile four seconds later and the raid strategy owns everything
     // after that. There is deliberately no WaitForSpawn on Nefarian: the wait
@@ -749,8 +741,11 @@ void RegisterBlackwingLairEvents(std::vector<DungeonEvent>& out)
     out.push_back(
         EventBuilder(MAP_ID, EVENT_NEFARIAN_START, "Nefarian — start the encounter")
             .Conditional(&NefarianStartDue)
+            .OwnsThePull()
             .Repeatable()
             .PanelBeforeBoss(NPC_NEFARIAN)
+            .Custom(DC_HOOK_RAID_MUSTER)
+                .Timeout(240000)
             .Gossip(NPC_VICTOR_NEFARIUS, NEFARIUS_GOSSIP_OPTION, NEFARIUS_SCAN)
             .Build());
 }
