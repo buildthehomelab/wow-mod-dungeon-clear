@@ -45,6 +45,9 @@
 #include "Ai/Dungeon/DungeonClear/Data/DungeonEventRegistry.h"
 #include "Ai/Dungeon/DungeonClear/Overrides/ObjectiveHookRegistry.h"
 #include "Ai/Dungeon/DungeonClear/Util/DungeonEventExecutor.h"
+#include "Ai/Dungeon/DungeonClear/Util/DcLeaderSignal.h"
+#include "Ai/Dungeon/DungeonClear/Util/DcRun.h"
+#include "Ai/Dungeon/DungeonClear/Util/DcRunProgress.h"
 #include "Ai/Dungeon/DungeonClear/Util/ChunkedPathfinder.h"
 #include "Ai/Dungeon/DungeonClear/Util/DcDoorPolicy.h"
 #include "Ai/Dungeon/DungeonClear/Util/DcMovement.h"
@@ -485,9 +488,9 @@ namespace
     // lanes (Lucifron's loop is ~75s), looking again this often.
     constexpr uint32 DC_ROOM_LANE_BOSS_WAIT_MAX_MS = 90000;
     constexpr uint32 DC_ROOM_LANE_BOSS_LOOK_MS = 2000;
-    // A wait not looked at for this long was broken off (a fight); one is logged
-    // this often.
-    constexpr uint32 DC_ROOM_LANE_BOSS_STALE_MS = 20000;
+    // A wait not looked at for this long was broken off (a fight; longer than a
+    // raid patrol hold's 30s budget); one is logged this often.
+    constexpr uint32 DC_ROOM_LANE_BOSS_STALE_MS = 35000;
     constexpr uint32 DC_ROOM_LANE_BOSS_LOG_MS = 10000;
 
     enum class DcRoomLane
@@ -529,7 +532,8 @@ namespace
     // taken whatever its margin against other packs, but not one inside the boss's
     // own keep-away while he is a patroller who will walk off it: the tank waits
     // for a lane that clears him (BossWait), for DC_ROOM_LANE_BOSS_WAIT_MAX_MS at
-    // most. In the 2026-10-21 Molten Core run all 19 hound packs round Lucifron
+    // most. A tank standing inside his keep holds the same way before any lane is
+    // measured, last resort or not: every walk from there passes him. In the 2026-10-21 Molten Core run all 19 hound packs round Lucifron
     // were refused and the lane taken ("worst margin -24.4yd") walked the tank
     // within 25yd of him: a hound pack woke on the walk, the fight planted 35yd
     // from him, and he and his Protectors joined it.
@@ -568,24 +572,41 @@ namespace
             (pull.laneBossWaitBoss != boss->GetGUID() ||
              getMSTimeDiff(pull.laneBossLookMs, now) >= DC_ROOM_LANE_BOSS_STALE_MS))
             pull.laneBossWaitSince = 0;
-        bool const bossPatrols =
-            lastResort && !DcEngageGeometry::PatrolRouteOf(boss).empty();
+        bool const bossPatrols = !DcEngageGeometry::PatrolRouteOf(boss).empty();
         bool const waitedOut = pull.laneBossWaitSince &&
                                getMSTimeDiff(pull.laneBossWaitSince, now) >= DC_ROOM_LANE_BOSS_WAIT_MAX_MS;
-        bool const bossClear = bossPatrols && !waitedOut;
-        if (bossClear && pull.laneBossWaitSince &&
+        // The last resort waits for a lane clear of his own keep. So does a tank
+        // standing inside it, last resort or not: from there every lane's walk passes
+        // him (a clean lane leaves that walk out), and refusing the packs one by one
+        // would only send the room to its last resort.
+        bool const tankInKeep = bossPatrols && bot->GetExactDist2d(boss) < bossRadius;
+        bool const bossWaits = bossPatrols && !waitedOut && (lastResort || tankInKeep);
+        bool const bossClear = bossWaits && lastResort;
+        // A hold on purpose, as a pause is: the stranded-recovery clock is kept
+        // fresh so a 90s wait doesn't read as a stalled run and teleport the raid.
+        auto const holdAsProgress = [&]()
+        {
+            if (Player* owner = DcLeaderSignal::FindRunOwner(bot))
+                if (PlayerbotAI* ownerAI = GET_PLAYERBOT_AI(owner))
+                    DcRunProgress::Stamp(DcRun::Of(ownerAI).progress, now);
+        };
+        if (bossWaits && pull.laneBossWaitSince &&
             getMSTimeDiff(pull.laneBossLookMs, now) < DC_ROOM_LANE_BOSS_LOOK_MS)
         {
             pull.laneTarget = ObjectGuid::Empty;
+            holdAsProgress();
             return DcRoomLane::BossWait;  // looked a moment ago
         }
+        bool const holdInKeep = bossWaits && tankInKeep;
         std::optional<DcPullPlanner::RoomClearLane> const lane =
-            DcPullPlanner::ComputeRoomClearLane(botAI, trash, boss, bossRadius, standDist,
-                                                setback, safeRadius,
-                                                /*requireClean*/ !lastResort,
-                                                /*requireBossClear*/ bossClear);
-        if (!lane && bossClear)
+            holdInKeep ? std::nullopt
+                       : DcPullPlanner::ComputeRoomClearLane(botAI, trash, boss, bossRadius, standDist,
+                                                             setback, safeRadius,
+                                                             /*requireClean*/ !lastResort,
+                                                             /*requireBossClear*/ bossClear);
+        if (bossWaits && !lane)
         {
+            holdAsProgress();
             if (!pull.laneBossWaitSince)
             {
                 pull.laneBossWaitSince = now ? now : 1;
@@ -598,10 +619,12 @@ namespace
             if (!pull.laneBossLogMs || getMSTimeDiff(pull.laneBossLogMs, now) >= DC_ROOM_LANE_BOSS_LOG_MS)
             {
                 pull.laneBossLogMs = now ? now : 1;
-                DC_PULL_INFO("[DC:{}] room-clear lane: every lane left to {} ({:.1f}yd off {}) "
-                             "crosses {}'s keep -> waiting for him to walk on ({}s of {}s)",
-                             bot->GetName(), trash->GetGUID().ToString(),
-                             trash->GetExactDist2d(boss), boss->GetName(), boss->GetName(),
+                DC_PULL_INFO("[DC:{}] room-clear lane: {} to {} ({:.1f}yd off {}) "
+                             "-> waiting for him to walk on ({}s of {}s)",
+                             bot->GetName(),
+                             holdInKeep ? "standing in " + std::string(boss->GetName()) + "'s keep, no lane"
+                                        : "every lane left crosses " + std::string(boss->GetName()) + "'s keep",
+                             trash->GetGUID().ToString(), trash->GetExactDist2d(boss), boss->GetName(),
                              getMSTimeDiff(pull.laneBossWaitSince, now) / 1000,
                              DC_ROOM_LANE_BOSS_WAIT_MAX_MS / 1000);
             }

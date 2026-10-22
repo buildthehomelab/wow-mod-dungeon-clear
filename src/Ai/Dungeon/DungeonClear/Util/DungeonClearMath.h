@@ -1567,9 +1567,9 @@ namespace DungeonClearMath
                 continue;
 
             lane.margin = StraightPullMarginCap;
-            for (std::size_t i = 0; i < keepAways.size(); ++i)
+            for (std::size_t ki = 0; ki < keepAways.size(); ++ki)
             {
-                LaneKeepAway const& k = keepAways[i];
+                LaneKeepAway const& k = keepAways[ki];
                 lane.margin = std::min(
                     lane.margin, PointSegmentDist2d(k.x, k.y, lane.standX, lane.standY,
                                                     lane.campX, lane.campY) -
@@ -1583,7 +1583,7 @@ namespace DungeonClearMath
                     lane.margin = std::min(lane.margin, walkClear);
                 // The first keep-away's walk counts even from inside it: a tank
                 // waiting inside a patrolling boss's keep must not walk past him.
-                if (i == 0)
+                if (ki == 0)
                     lane.firstMargin = std::min(lane.margin, walkClear);
             }
             if (keepAways.empty())
