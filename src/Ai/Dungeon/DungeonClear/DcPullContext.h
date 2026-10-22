@@ -344,6 +344,12 @@ struct DcPullContext
     std::vector<ObjectGuid> laneRefused;
     uint32      laneRefusedLive = 0;             // live room trash when the list
                                                  // was last written
+    // The last resort waiting on a patrolling boss (Lucifron) whose walk crosses
+    // every lane left: which boss, since when, when it last looked and logged.
+    ObjectGuid  laneBossWaitBoss;
+    uint32      laneBossWaitSince = 0;
+    uint32      laneBossLookMs    = 0;
+    uint32      laneBossLogMs     = 0;
 
     // --- CC-assist gate ---------------------------------------------------
     uint32      ccSince    = 0;                  // getMSTime() the tank's CURRENT

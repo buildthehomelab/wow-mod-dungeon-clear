@@ -1357,7 +1357,7 @@ std::optional<Position> DcPullPlanner::ComputeSafeCamp(PlayerbotAI* botAI, Unit*
 }
 std::optional<DcPullPlanner::RoomClearLane> DcPullPlanner::ComputeRoomClearLane(
     PlayerbotAI* botAI, Unit* target, Unit* boss, float bossRadius, float standDist,
-    float setback, float safeRadius, bool requireClean)
+    float setback, float safeRadius, bool requireClean, bool requireBossClear)
 {
     if (!botAI || !target || !boss)
         return std::nullopt;
@@ -1435,6 +1435,9 @@ std::optional<DcPullPlanner::RoomClearLane> DcPullPlanner::ComputeRoomClearLane(
         // can sit behind an unclean one that is merely closer.
         if (requireClean && lane.margin < 0.0f)
             continue;
+        // keepAways[0] is the boss.
+        if (requireBossClear && lane.firstMargin < 0.0f)
+            continue;
         // Pure arithmetic, so it does not spend the path-validation budget. No
         // last-resort exemption: a lane whose camp sits on the patrol is not taken
         // at all, and the pull falls back to ComputeSafeCamp, which keeps the same
@@ -1474,7 +1477,7 @@ std::optional<DcPullPlanner::RoomClearLane> DcPullPlanner::ComputeRoomClearLane(
         float const face = stand->GetAngle(target);
         stand->SetOrientation(face);
         camp->SetOrientation(face);
-        return RoomClearLane{*stand, *camp, lane.margin};
+        return RoomClearLane{*stand, *camp, lane.margin, lane.firstMargin};
     }
     return std::nullopt;
 }

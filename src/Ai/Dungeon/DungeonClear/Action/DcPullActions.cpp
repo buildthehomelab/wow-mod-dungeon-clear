@@ -481,12 +481,40 @@ namespace
     // answer, refused with it (ComputeRoomClearLane's own pack radius).
     constexpr float DC_ROOM_LANE_PACK_RADIUS = 12.0f;
 
+    // The last resort waits this long at most for a patrolling boss to walk off the
+    // lanes (Lucifron's loop is ~75s), looking again this often.
+    constexpr uint32 DC_ROOM_LANE_BOSS_WAIT_MAX_MS = 90000;
+    constexpr uint32 DC_ROOM_LANE_BOSS_LOOK_MS = 2000;
+    // A wait not looked at for this long was broken off (a fight); one is logged
+    // this often.
+    constexpr uint32 DC_ROOM_LANE_BOSS_STALE_MS = 20000;
+    constexpr uint32 DC_ROOM_LANE_BOSS_LOG_MS = 10000;
+
     enum class DcRoomLane
     {
         Ok,         // pull.laneStand / laneCamp hold the lane for `trash`
         None,       // no lane: close on the pack the old way
         Deferred,   // no CLEAN lane and a cleaner pack is left: refused, pull that
+        BossWait,   // last resort, and every lane crosses a patrolling boss: wait
     };
+
+    // The room clear's boss while it is out of the fight, and how far the clear
+    // keeps from him (the lane's boss keep-away); nullptr with no room clear.
+    Creature* IdleRoomClearBoss(Player* bot, AiObjectContext* ctx, float& keep)
+    {
+        if (!DcTargeting::IsRoomClearActive(bot, ctx))
+            return nullptr;
+        std::optional<DungeonBossInfo> const next =
+            ctx->GetValue<std::optional<DungeonBossInfo>>(DcKey::NextDungeonBoss)->Get();
+        if (!next.has_value())
+            return nullptr;
+        Creature* const boss = DcTargeting::GetLiveBoss(bot, ctx, next->entry);
+        if (!boss || boss->IsInCombat())
+            return nullptr;
+        keep = std::max(DcEngageGeometry::RoomAggroSphereRadius(bot, boss),
+                        DcTargeting::ActiveRoomSkirt(bot, ctx));
+        return boss;
+    }
 
     // The room-clear straight-pull lane for `trash` (DcPullPlanner::
     // ComputeRoomClearLane), cached in the pull context: computed once per pack,
@@ -498,7 +526,13 @@ namespace
     // through anybody else's reach. tr-20260927-210901-8 took a lane logged
     // "worst margin -0.9yd" and woke a Steward and a second Guest formation on the
     // walk to its stand spot. When everything left is refused, the best lane is
-    // taken whatever its margin — the old behaviour, as a last resort.
+    // taken whatever its margin against other packs, but not one inside the boss's
+    // own keep-away while he is a patroller who will walk off it: the tank waits
+    // for a lane that clears him (BossWait), for DC_ROOM_LANE_BOSS_WAIT_MAX_MS at
+    // most. In the 2026-10-21 Molten Core run all 19 hound packs round Lucifron
+    // were refused and the lane taken ("worst margin -24.4yd") walked the tank
+    // within 25yd of him: a hound pack woke on the walk, the fight planted 35yd
+    // from him, and he and his Protectors joined it.
     DcRoomLane DcResolveRoomClearLane(PlayerbotAI* botAI, Player* bot, AiObjectContext* ctx,
                                       Unit* trash, float commitRange)
     {
@@ -525,10 +559,56 @@ namespace
         float const safeRadius = DcSettings::GetFloat(bot, "PullCampSafeRadius");
         float const standDist = std::max(commitRange - 1.5f, 8.0f);
         bool const lastResort = !DcTargeting::HasUnrefusedRoomTrash(bot, ctx, trash);
+        uint32 const now = getMSTime();
+        // The wait belongs to one boss and one stretch of standing: a since-time
+        // from another boss, or from before a fight broke the wait off (no look
+        // for DC_ROOM_LANE_BOSS_STALE_MS), starts over. Not reset when the refusals
+        // are dropped and taken again: that happens as he walks.
+        if (pull.laneBossWaitSince &&
+            (pull.laneBossWaitBoss != boss->GetGUID() ||
+             getMSTimeDiff(pull.laneBossLookMs, now) >= DC_ROOM_LANE_BOSS_STALE_MS))
+            pull.laneBossWaitSince = 0;
+        bool const bossPatrols =
+            lastResort && !DcEngageGeometry::PatrolRouteOf(boss).empty();
+        bool const waitedOut = pull.laneBossWaitSince &&
+                               getMSTimeDiff(pull.laneBossWaitSince, now) >= DC_ROOM_LANE_BOSS_WAIT_MAX_MS;
+        bool const bossClear = bossPatrols && !waitedOut;
+        if (bossClear && pull.laneBossWaitSince &&
+            getMSTimeDiff(pull.laneBossLookMs, now) < DC_ROOM_LANE_BOSS_LOOK_MS)
+        {
+            pull.laneTarget = ObjectGuid::Empty;
+            return DcRoomLane::BossWait;  // looked a moment ago
+        }
         std::optional<DcPullPlanner::RoomClearLane> const lane =
             DcPullPlanner::ComputeRoomClearLane(botAI, trash, boss, bossRadius, standDist,
                                                 setback, safeRadius,
-                                                /*requireClean*/ !lastResort);
+                                                /*requireClean*/ !lastResort,
+                                                /*requireBossClear*/ bossClear);
+        if (!lane && bossClear)
+        {
+            if (!pull.laneBossWaitSince)
+            {
+                pull.laneBossWaitSince = now ? now : 1;
+                pull.laneBossWaitBoss = boss->GetGUID();
+                pull.laneBossLogMs = 0;
+            }
+            pull.laneBossLookMs = now;
+            // Not cached: looked at again in a moment, wherever he has walked to.
+            pull.laneTarget = ObjectGuid::Empty;
+            if (!pull.laneBossLogMs || getMSTimeDiff(pull.laneBossLogMs, now) >= DC_ROOM_LANE_BOSS_LOG_MS)
+            {
+                pull.laneBossLogMs = now ? now : 1;
+                DC_PULL_INFO("[DC:{}] room-clear lane: every lane left to {} ({:.1f}yd off {}) "
+                             "crosses {}'s keep -> waiting for him to walk on ({}s of {}s)",
+                             bot->GetName(), trash->GetGUID().ToString(),
+                             trash->GetExactDist2d(boss), boss->GetName(), boss->GetName(),
+                             getMSTimeDiff(pull.laneBossWaitSince, now) / 1000,
+                             DC_ROOM_LANE_BOSS_WAIT_MAX_MS / 1000);
+            }
+            return DcRoomLane::BossWait;
+        }
+        if (lane)
+            pull.laneBossWaitSince = 0;
         if (!lane && !lastResort)
         {
             DcTargeting::RefuseRoomLane(bot, ctx, trash, DC_ROOM_LANE_PACK_RADIUS);
@@ -558,7 +638,7 @@ namespace
         DC_PULL_INFO("[DC:{}] room-clear lane: {} ({:.1f}yd off {}) -> stand "
                      "({:.1f},{:.1f},{:.1f}) {:.1f}yd from it, camp ({:.1f},{:.1f},{:.1f}) "
                      "drag {:.1f}yd; stand {:.1f}yd / camp {:.1f}yd off {} (keep {:.0f}), "
-                     "worst margin {:.1f}yd",
+                     "worst margin {:.1f}yd ({:.1f}yd off {}'s keep)",
                      bot->GetName(), trash->GetGUID().ToString(),
                      trash->GetExactDist2d(boss), boss->GetName(),
                      lane->stand.GetPositionX(), lane->stand.GetPositionY(),
@@ -566,7 +646,7 @@ namespace
                      lane->camp.GetPositionX(), lane->camp.GetPositionY(),
                      lane->camp.GetPositionZ(), lane->stand.GetExactDist2d(&lane->camp),
                      lane->stand.GetExactDist2d(boss), lane->camp.GetExactDist2d(boss),
-                     boss->GetName(), bossRadius, lane->margin);
+                     boss->GetName(), bossRadius, lane->margin, lane->bossMargin, boss->GetName());
         return DcRoomLane::Ok;
     }
 
@@ -859,8 +939,9 @@ bool DungeonClearPullAction::Execute(Event /*event*/)
                     ? DcResolveRoomClearLane(botAI, bot, context, trash, commitRange)
                     : DcRoomLane::None;
             // Refused this tick: stand still and let the next tick's pull target (the
-            // cache was reset) name the cleaner pack.
-            if (laneState == DcRoomLane::Deferred)
+            // cache was reset) name the cleaner pack. Waiting on a patrolling boss:
+            // stand still too, and look again.
+            if (laneState == DcRoomLane::Deferred || laneState == DcRoomLane::BossWait)
             {
                 DcMovement::StopBot(bot, DcMovement::Stop::Hold);
                 return true;
@@ -3032,8 +3113,21 @@ bool DungeonClearPullManeuverAction::Execute(Event /*event*/)
     // only ground in reach that the rest of the room cannot see; planting "wherever
     // the pack glues on" would drop a six-mob fight in the doorway or, worse, back
     // inside the room next to the pack that has not been pulled yet.
+    // Nor inside a room clear's keep-away from its idle boss: the drag goes on to
+    // the camp, which keeps clear of him. A hound pack that woke on the walk-in
+    // glued on 45.7yd short of the camp and the fight planted 35yd from Lucifron
+    // (keep 40): he joined it (Molten Core, 2026-10-21).
+    auto const plantNearRoomBoss = [&]()
+    {
+        float keep = 0.0f;
+        Creature* const roomBoss = IdleRoomClearBoss(bot, context, keep);
+        return roomBoss && bot->GetExactDist2d(roomBoss) < keep;
+    };
     if (DcSettings::GetBool(bot, "PullPlantEnable") && !pull.bossPullback &&
-        pull.scriptedStage < 0)
+        pull.scriptedStage < 0 && plantNearRoomBoss())
+        pull.plantTicks = 0;  // the glue count starts over once out of his keep
+    else if (DcSettings::GetBool(bot, "PullPlantEnable") && !pull.bossPullback &&
+             pull.scriptedStage < 0)
     {
         float const glueRadius = DcSettings::GetFloat(bot, "PullPlantGlueRadius");
         std::vector<float> attackerDists;
