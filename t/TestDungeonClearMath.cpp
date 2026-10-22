@@ -2508,6 +2508,100 @@ TEST(DungeonClearPathCursorTest, FlatRouteIsUnaffectedByTheZTerm)
 }
 
 // ---------------------------------------------------------------------------
+// IsAheadOnRoute — a member out past the tank on the route it is about to walk.
+// ---------------------------------------------------------------------------
+
+namespace
+{
+    std::vector<G3D::Vector3> CorridorRoute()
+    {
+        return {
+            G3D::Vector3(0.0f, 0.0f, 100.0f),
+            G3D::Vector3(20.0f, 0.0f, 100.0f),
+            G3D::Vector3(40.0f, 0.0f, 100.0f),
+            G3D::Vector3(60.0f, 0.0f, 100.0f),
+            G3D::Vector3(80.0f, 0.0f, 100.0f),
+        };
+    }
+}
+
+TEST(DungeonClearAheadOnRouteTest, MemberAtTheNextPackIsAhead)
+{
+    // Tank at the start, the player 60yd on down the corridor.
+    EXPECT_TRUE(DungeonClearMath::IsAheadOnRoute(CorridorRoute(),
+                                                 1.0f, 0.0f, 100.0f,
+                                                 61.0f, 2.0f, 100.0f, 25.0f, 45.0f));
+}
+
+TEST(DungeonClearAheadOnRouteTest, MemberLeftBehindIsNotAhead)
+{
+    // The same 60yd gap the other way round: the tank is the one ahead.
+    EXPECT_FALSE(DungeonClearMath::IsAheadOnRoute(CorridorRoute(),
+                                                  61.0f, 0.0f, 100.0f,
+                                                  1.0f, 2.0f, 100.0f, 25.0f, 45.0f));
+}
+
+TEST(DungeonClearAheadOnRouteTest, MemberOnTheTanksVertexIsNotAhead)
+{
+    EXPECT_FALSE(DungeonClearMath::IsAheadOnRoute(CorridorRoute(),
+                                                  40.0f, 0.0f, 100.0f,
+                                                  42.0f, 3.0f, 100.0f, 25.0f, 45.0f));
+}
+
+TEST(DungeonClearAheadOnRouteTest, MemberFarOffTheRouteIsNotAhead)
+{
+    // Level with the far end of the route, but 50yd off to the side.
+    EXPECT_FALSE(DungeonClearMath::IsAheadOnRoute(CorridorRoute(),
+                                                  1.0f, 0.0f, 100.0f,
+                                                  60.0f, 50.0f, 100.0f, 25.0f, 45.0f));
+}
+
+TEST(DungeonClearAheadOnRouteTest, MemberOnTheFloorAboveIsNotAhead)
+{
+    // Directly over the far end of the corridor, one storey up: close in plan
+    // view, nowhere near the route in 3D.
+    EXPECT_FALSE(DungeonClearMath::IsAheadOnRoute(CorridorRoute(),
+                                                  1.0f, 0.0f, 100.0f,
+                                                  60.0f, 0.0f, 140.0f, 25.0f, 45.0f));
+}
+
+TEST(DungeonClearAheadOnRouteTest, PastTheEndOfTheRouteIsAhead)
+{
+    // Standing at the boss, a little beyond the route's last vertex.
+    EXPECT_TRUE(DungeonClearMath::IsAheadOnRoute(CorridorRoute(),
+                                                 1.0f, 0.0f, 100.0f,
+                                                 90.0f, 0.0f, 100.0f, 25.0f, 45.0f));
+}
+
+TEST(DungeonClearAheadOnRouteTest, TankFarOffTheRouteComparesNothing)
+{
+    // The tank was dragged 60yd off the corridor by a fight; its nearest vertex
+    // says nothing about how far along the walk it is.
+    EXPECT_FALSE(DungeonClearMath::IsAheadOnRoute(CorridorRoute(),
+                                                  1.0f, 60.0f, 100.0f,
+                                                  61.0f, 2.0f, 100.0f, 25.0f, 45.0f));
+}
+
+TEST(DungeonClearAheadOnRouteTest, ReportsTheMembersCursor)
+{
+    std::size_t cursor = 0;
+    EXPECT_TRUE(DungeonClearMath::IsAheadOnRoute(CorridorRoute(),
+                                                 1.0f, 0.0f, 100.0f,
+                                                 61.0f, 2.0f, 100.0f, 25.0f, 45.0f,
+                                                 &cursor));
+    EXPECT_EQ(cursor, 3u);
+}
+
+TEST(DungeonClearAheadOnRouteTest, TooShortARouteIsNeverAhead)
+{
+    EXPECT_FALSE(DungeonClearMath::IsAheadOnRoute({}, 0.0f, 0.0f, 0.0f,
+                                                  50.0f, 0.0f, 0.0f, 25.0f, 45.0f));
+    EXPECT_FALSE(DungeonClearMath::IsAheadOnRoute({G3D::Vector3(0.0f, 0.0f, 0.0f)},
+                                                  0.0f, 0.0f, 0.0f,
+                                                  5.0f, 0.0f, 0.0f, 25.0f, 45.0f));
+}
+
+// ---------------------------------------------------------------------------
 // DoorTravelRemaining — how far the door-blocked walk-in still has to go.
 // ---------------------------------------------------------------------------
 

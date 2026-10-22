@@ -1200,6 +1200,30 @@ namespace DungeonClearMath
                               std::size_t cursor,
                               float px, float py, float pz, float maxGap);
 
+    // True when the member stands on `route` FURTHER ALONG it than the tank:
+    // the member's progress cursor is past the tank's, the member is within
+    // `maxOffRoute` (3D) of that cursor vertex, so it is standing on the route
+    // and not in a side room or on a floor above that happens to be near it,
+    // and the tank is within `tankMaxOffRoute` of its own cursor vertex (a tank
+    // pulled far off the route has no meaningful progress to compare against).
+    // `memberCursor`, when given, receives the member's cursor so the caller can
+    // add the line-of-sight half of the "on the route" test — distance alone
+    // passes through a wall where a route folds back past where the party is.
+    //
+    // The between-pulls spread gate uses this to stop holding the tank for a
+    // human who ran on ahead. Measured only by distance, a player standing at
+    // the next pack is exactly as "out of range" as one left at the last
+    // pack, and the tank parks until they walk back to it — but the tank is
+    // about to walk to them. Both cursors are the 3D pick (PathProgressCursor),
+    // so a stacked floor cannot read as progress.
+    //
+    // False for a route of fewer than two points.
+    bool IsAheadOnRoute(std::vector<G3D::Vector3> const& route,
+                        float tankX, float tankY, float tankZ,
+                        float memberX, float memberY, float memberZ,
+                        float maxOffRoute, float tankMaxOffRoute,
+                        std::size_t* memberCursor = nullptr);
+
     // Travel still REMAINING from the bot to where `route` first enters the
     // door band of (doorX,doorY,doorZ), or FLT_MAX when the route never does
     // within `maxLookAhead` of the bot's progress cursor, or does so only well
