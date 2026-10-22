@@ -755,7 +755,8 @@ DcEngageGeometry::BossNearBoss DcEngageGeometry::PatrollingBossNearOtherBoss(Pla
 DcEngageGeometry::PatrolThreat DcEngageGeometry::PatrolThreatNear(Player* bot,
                                                                   AiObjectContext* ctx,
                                                                   Unit* target,
-                                                                  Position const* camp)
+                                                                  Position const* camp,
+                                                                  std::vector<uint32> const* onlyEntries)
 {
     PatrolThreat out;
     if (!bot || !ctx || !target)
@@ -802,6 +803,9 @@ DcEngageGeometry::PatrolThreat DcEngageGeometry::PatrolThreatNear(Player* bot,
         if (!c || !c->IsAlive() || c == target)
             continue;
         if (!bot->IsHostileTo(c) || c->IsCritter() || c->IsTotem() || IsDisplayedDead(c))
+            continue;
+        if (onlyEntries && !onlyEntries->empty() &&
+            std::find(onlyEntries->begin(), onlyEntries->end(), c->GetEntry()) == onlyEntries->end())
             continue;
         // Already fighting: it is in the fight we are in, not one we could start.
         if (c->IsInCombat())

@@ -523,11 +523,18 @@ namespace
     //   patrol row: the tank walks the few yards to the aggro edge and the pack comes
     //   to the camp.
     //
-    //   WEST ROW — camp on the east pack's own floor (-7529.0, -921.0), empty by
-    //   then: every point 12yd around it is 29yd+ from the west pack and 29.5yd from
-    //   the floor above. Stand on anchor 13 (certified on-mesh, sight-line down the
-    //   route leg into the pack), 21.9yd from Flamescale 84529, so the tag is a
-    //   ranged opener on the nearest member and a ~31yd drag north-east.
+    //   WEST ROW — camp on the east row's camp (-7535.0, -952.0), empty by then and
+    //   37.9yd from the west pack. Stand on anchor 13 (certified on-mesh, sight-line
+    //   down the route leg into the pack), 21.9yd from Flamescale 84529, so the tag
+    //   is a ranged opener on the nearest member and a ~16yd drag back east.
+    //
+    //   It used to camp on the east pack's own floor (-7529.0, -921.0), and that is
+    //   30yd straight under the landing at z 457.9: the landing pack (formation
+    //   84625) stands 2-10yd off it in plan, and Firemaw's waypoints 4 and 8 stop on
+    //   it 22yd off. Live (10/21 evening): a landing Warlock was meleeing the off-tank
+    //   15s into the west pack's fight and Firemaw was in it 10s later, both through
+    //   the floor; 46 deaths. The east camp is 38yd+ in 3D from every landing member
+    //   and 50yd from Firemaw's landing waypoint.
     //
     // Both rows arm off anchor 12, so the west row only becomes due once the tank
     // is back at the east camp with the east cylinder empty. Not yet measured
@@ -565,7 +572,8 @@ namespace
     // So every pack is dragged OUT, away from the path and the other packs, the way
     // the MgT hall-patrol row does it: the camp is the stand spot, a body pull, and
     // the pack (its Overseer may be anywhere on its path) comes to the camp. And each
-    // row waits for Firemaw to walk off before the tag (patrolGuard).
+    // row waits for Firemaw to walk off before the tag (patrolGuard); the floor rows
+    // wait for him alone (patrolGuardEntries), not for the other packs' Overseers.
     //
     //   FLOOR ROWS (orders 2-5, while Firemaw is next): the camp is in Broodlord's
     //   room at (-7592.9, -1075.2, 449.2), Death Talon Hatcher 2000061's spawn, so
@@ -574,7 +582,13 @@ namespace
     //   by reach from the door: the Warlock pack in the doorway first, then the south
     //   and north Overseer packs, the Wyrmguard pack on Firemaw's path last.
     //
-    //   UPPER ROWS (orders 6-9, Ebonroc next; Firemaw is dead): the landing pack
+    //   CATCH-UP ROW (order 6, Ebonroc next): the Wyrmguard pack again, if Firemaw
+    //   died before order 5 ran, dragged to his spawn. The floor rows are gated on
+    //   Firemaw being next, so his death retires them; this one is on the ramp the
+    //   tank walks to tag the landing pack. Live (10/21 evening): Firemaw was opened
+    //   on early, order 5 never ran, and the pack joined the landing-pack fight.
+    //
+    //   UPPER ROWS (orders 7-10, Ebonroc next; Firemaw is dead): the landing pack
     //   comes down to Firemaw's spawn (-7520.2, -1025.8, 449.1), the middle of his now
     //   empty floor. With it dead, the 465 packs come to the landing, (-7506.6,
     //   -923.1, 457.9): Firemaw's own waypoint, so floor, 43yd+ from every 465 pack.
@@ -783,7 +797,7 @@ namespace
             dtWest.bossEntry  = BWL_BROODLORD;
             dtWest.order      = 1;
             dtWest.name       = "Blackwing Lair — Death Talon west pack";
-            dtWest.campX      = -7529.00f; dtWest.campY  = -921.00f; dtWest.campZ  = 428.00f;
+            dtWest.campX      = -7535.00f; dtWest.campY  = -952.00f; dtWest.campZ  = 428.50f;
             dtWest.standX     = -7549.37f; dtWest.standY = -944.97f; dtWest.standZ = 428.65f;
             dtWest.packX      = -7581.20f; dtWest.packY  = -933.50f; dtWest.packZ  = 428.20f;
             dtWest.packRadius = 15.0f;
@@ -817,16 +831,19 @@ namespace
                 { 5, BWL_FIREMAW, "Blackwing Lair — Technician hall, the Wyrmguard and three Overseers",
                   BWL_HALL_CAMP_X, BWL_HALL_CAMP_Y, BWL_HALL_CAMP_Z, -7455.60f, -992.40f, 449.85f, 14.0f,
                   BWL_HALL_CAMP_X, BWL_HALL_CAMP_Y, BWL_HALL_CAMP_Z, BWL_HALL_ARM_R, true },
-                { 6, BWL_EBONROC, "Blackwing Lair — Technician hall, the landing pack",
+                { 6, BWL_EBONROC, "Blackwing Lair — Technician hall, the Wyrmguard pack left behind",
+                  BWL_FLOOR_CAMP_X, BWL_FLOOR_CAMP_Y, BWL_FLOOR_CAMP_Z, -7455.60f, -992.40f, 449.85f, 14.0f,
+                  BWL_FLOOR_CAMP_X, BWL_FLOOR_CAMP_Y, BWL_FLOOR_CAMP_Z, BWL_UPPER_ARM_R, true },
+                { 7, BWL_EBONROC, "Blackwing Lair — Technician hall, the landing pack",
                   BWL_FLOOR_CAMP_X, BWL_FLOOR_CAMP_Y, BWL_FLOOR_CAMP_Z, -7511.10f, -920.50f, 457.80f, 20.0f,
                   BWL_FLOOR_CAMP_X, BWL_FLOOR_CAMP_Y, BWL_FLOOR_CAMP_Z, BWL_UPPER_ARM_R, false },
-                { 7, BWL_EBONROC, "Blackwing Lair — Technician hall, the middle 465 pack",
+                { 8, BWL_EBONROC, "Blackwing Lair — Technician hall, the middle 465 pack",
                   BWL_LANDING_CAMP_X, BWL_LANDING_CAMP_Y, BWL_LANDING_CAMP_Z, -7450.50f, -942.80f, 465.10f, 32.0f,
                   BWL_FLOOR_CAMP_X, BWL_FLOOR_CAMP_Y, BWL_FLOOR_CAMP_Z, BWL_UPPER_ARM_R, false },
-                { 8, BWL_EBONROC, "Blackwing Lair — Technician hall, the north 465 pack",
+                { 9, BWL_EBONROC, "Blackwing Lair — Technician hall, the north 465 pack",
                   BWL_LANDING_CAMP_X, BWL_LANDING_CAMP_Y, BWL_LANDING_CAMP_Z, -7468.50f, -877.50f, 465.10f, 25.0f,
                   BWL_FLOOR_CAMP_X, BWL_FLOOR_CAMP_Y, BWL_FLOOR_CAMP_Z, BWL_UPPER_ARM_R, false },
-                { 9, BWL_EBONROC, "Blackwing Lair — Technician hall, the east 465 pack",
+                { 10, BWL_EBONROC, "Blackwing Lair — Technician hall, the east 465 pack",
                   BWL_LANDING_CAMP_X, BWL_LANDING_CAMP_Y, BWL_LANDING_CAMP_Z, -7414.40f, -915.60f, 465.20f, 29.0f,
                   BWL_FLOOR_CAMP_X, BWL_FLOOR_CAMP_Y, BWL_FLOOR_CAMP_Z, BWL_UPPER_ARM_R, false },
             };
@@ -851,6 +868,8 @@ namespace
                     s.entries.push_back(BWL_DT_WYRMGUARD);
                 s.bodyPull    = true;
                 s.patrolGuard = true;
+                if (r.boss == BWL_FIREMAW)
+                    s.patrolGuardEntries = {BWL_FIREMAW};
                 t.push_back(s);
             }
 
