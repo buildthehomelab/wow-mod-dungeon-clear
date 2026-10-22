@@ -1881,7 +1881,8 @@ bool DungeonClearEngageActionBase::DriveUseItemOnGO(EventStep const& step)
     {
         DcPartyState::SpreadGate const gate = DcPartyState::GetSpreadGate(bot, context);
         return !DcPartyState::IsPartyReady(bot, /*minHp*/ 0.0f, /*minMp*/ 0.0f,
-                                           gate.maxSpread, gate.anchor, gate.maxTankGap);
+                                           gate.maxSpread, gate.anchor, gate.maxTankGap,
+                                           gate.aheadRoute);
     };
     auto holdForParty = [&]() -> bool
     {
@@ -2014,7 +2015,7 @@ bool DungeonClearEngageActionBase::DriveUseItemAt(EventStep const& step)
     // PullSetback behind the tank cannot deadlock it.
     DcPartyState::SpreadGate const gate = DcPartyState::GetSpreadGate(bot, context);
     if (!DcPartyState::IsPartyReady(bot, /*minHp*/ 0.0f, /*minMp*/ 0.0f, gate.maxSpread,
-                                    gate.anchor, gate.maxTankGap))
+                                    gate.anchor, gate.maxTankGap, gate.aheadRoute))
     {
         SetPhase(context, "objective");
         DcMovement::StopBot(bot, DcMovement::Stop::Hold);

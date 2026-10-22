@@ -702,6 +702,27 @@ bool DungeonClearMath::PathCursorIsJoinable(std::vector<G3D::Vector3> const& rou
     return dx * dx + dy * dy + dz * dz <= maxGap * maxGap;
 }
 
+bool DungeonClearMath::IsAheadOnRoute(std::vector<G3D::Vector3> const& route,
+                                      float tankX, float tankY, float tankZ,
+                                      float memberX, float memberY, float memberZ,
+                                      float maxOffRoute, float tankMaxOffRoute,
+                                      std::size_t* memberCursor)
+{
+    if (route.size() < 2)
+        return false;
+
+    std::size_t const tankCursor = PathProgressCursor(route, tankX, tankY, tankZ);
+    std::size_t const cursor = PathProgressCursor(route, memberX, memberY, memberZ);
+    if (cursor <= tankCursor)
+        return false;
+    if (!PathCursorIsJoinable(route, tankCursor, tankX, tankY, tankZ, tankMaxOffRoute) ||
+        !PathCursorIsJoinable(route, cursor, memberX, memberY, memberZ, maxOffRoute))
+        return false;
+    if (memberCursor)
+        *memberCursor = cursor;
+    return true;
+}
+
 float DungeonClearMath::DoorTravelRemaining(std::vector<G3D::Vector3> const& route,
                                             float botX, float botY, float botZ,
                                             float doorX, float doorY, float doorZ,

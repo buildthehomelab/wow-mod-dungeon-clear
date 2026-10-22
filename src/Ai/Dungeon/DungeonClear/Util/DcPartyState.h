@@ -7,9 +7,11 @@
 #define _DC_PARTY_STATE_H
 
 #include <string>
+#include <vector>
 
 class AiObjectContext;
 class Player;
+struct PathSegment;
 struct Position;
 
 class DcPartyState
@@ -43,11 +45,17 @@ public:
     //    forever while the tank glides away unchecked (the scout-runaway gap).
     //    Sized generously (spread + the largest legitimate camp standoff) so it
     //    never trips in healthy pull states — see GetSpreadGate.
+    // A real player who fails the two distance checks still counts as caught up
+    // when they stand on *aheadRoute further along than the bot (the tank is
+    // about to walk to them, so holding for them to walk back is a deadlock the
+    // player has to notice and break by hand). Bots are never waived: a bot out
+    // ahead of the tank is a follow bug, and holding for it is the safe answer.
     // Dead members are not blocking — the party-died trigger handles them.
     // Callers pass RestMinHpPct()/RestMinMpPct() for the recovery thresholds.
     static bool IsPartyReady(Player* bot, float minHpPct, float minMpPct, float maxSpread,
                              Position const* spreadAnchor = nullptr,
-                             float maxTankGap = 0.0f);
+                             float maxTankGap = 0.0f,
+                             std::vector<PathSegment> const* aheadRoute = nullptr);
 
     // The effective inputs of the between-pulls spread check for `bot` right now:
     // the live PartyMaxSpread (waived to "infinite" while a pull maneuver is
@@ -77,6 +85,11 @@ public:
         float maxSpread = 0.0f;
         Position const* anchor = nullptr;  // nullptr = measure against the bot (tank)
         float maxTankGap = 0.0f;           // 0 = no absolute tank cap
+        // The cached long path to the CURRENT target, for the run-ahead waiver
+        // on IsPartyReady; nullptr when there is none or it was built for an
+        // earlier target. Points into the bot's long-path value; valid for the
+        // current tick only, like `anchor`.
+        std::vector<PathSegment> const* aheadRoute = nullptr;
     };
     static SpreadGate GetSpreadGate(Player* bot, AiObjectContext* context);
 
@@ -209,7 +222,8 @@ public:
                                              float minHpPct, float minMpPct,
                                              float maxSpread,
                                              Position const* spreadAnchor = nullptr,
-                                             float maxTankGap = 0.0f);
+                                             float maxTankGap = 0.0f,
+                                             std::vector<PathSegment> const* aheadRoute = nullptr);
 
     // Names the living bot party members currently looting (walking to or
     // standing on a corpse), comma-joined and capped like DescribePartyNotReady.
