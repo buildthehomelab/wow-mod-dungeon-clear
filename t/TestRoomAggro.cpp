@@ -319,7 +319,11 @@ TEST(RoomAggroRegistryTest, BlackwingLairFiremawClearsTheWorkshopRing)
     RoomAggroBoss const* firemaw = RoomAggroRegistry::Find(469, 11983);
     ASSERT_NE(firemaw, nullptr);
     EXPECT_FLOAT_EQ(firemaw->radius, 47.0f);
-    EXPECT_EQ(firemaw->memberEntries, (std::vector<uint32>{13996, 12459, 12457, 12461}));
+    // No Overseer: the room is measured from the live boss, and while the raid waits
+    // for him at the near end of his path he walks past the Wyrmguard pack (four
+    // Overseers), which is killed after him. The floor packs' Overseers are their
+    // scripted rows'.
+    EXPECT_EQ(firemaw->memberEntries, (std::vector<uint32>{13996, 12459, 12457}));
     EXPECT_FALSE(RoomAggroRegistry::IsMemberEntry(*firemaw, 14020));  // Chromaggus, a floor up
     // The ring's nearest members are inside the computed ~28yd exclusion, so the
     // row needs a pull-out radius (and with it the drag-to-camp pull)...
@@ -331,7 +335,7 @@ TEST(RoomAggroRegistryTest, BlackwingLairFiremawClearsTheWorkshopRing)
     float const bossSafe = firemaw->pullOutRadius;
     EXPECT_TRUE(RoomAggroRegistry::IsRoomTrash(*firemaw, 12459, 22.1f, bossSafe));  // nearest Warlock
     EXPECT_TRUE(RoomAggroRegistry::IsRoomTrash(*firemaw, 13996, 35.2f, bossSafe));  // ring's far edge
-    EXPECT_TRUE(RoomAggroRegistry::IsRoomTrash(*firemaw, 12461, 46.7f, bossSafe));  // next group's Overseer
+    EXPECT_FALSE(RoomAggroRegistry::IsRoomTrash(*firemaw, 12461, 46.7f, bossSafe)); // an Overseer
     EXPECT_FALSE(RoomAggroRegistry::IsRoomTrash(*firemaw, 13996, 49.2f, bossSafe)); // further down the room
     EXPECT_FALSE(RoomAggroRegistry::IsRoomTrash(*firemaw, 13996, 51.1f, bossSafe)); // the floor below
 }

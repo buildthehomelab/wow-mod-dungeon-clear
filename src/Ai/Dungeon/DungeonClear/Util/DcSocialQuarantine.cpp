@@ -117,7 +117,7 @@ namespace DcSocialQuarantine
         if (bossEntry && anyScriptedRow)
             for (ScriptedPullStage const* s : ScriptedPullRegistry::Rows(mapId))
             {
-                if (s->bossEntry != bossEntry)
+                if (!s->DueFor(bossEntry))
                     continue;
                 // The due/in-flight stage is the pull; releasing it is the whole
                 // point of naming an active stage at all.

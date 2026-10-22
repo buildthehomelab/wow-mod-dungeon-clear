@@ -402,7 +402,15 @@ namespace
         // ring's nearest members (22yd, inside the computed ~28yd exclusion)
         // clearable and forces the drag-to-camp pull; skirtRadius 40 puts the camp
         // outside the whole ring, so no dragged pack is fought in his aggro.
-        { 469, 11983, 47.0f, { 13996, 12459, 12457, 12461 }, false, 0.0f, 0.0f,
+        //
+        // No Death Talon Overseer (12461) in the whitelist since he is ambushed at
+        // the near end of his path (BossAmbushRegistry) after the floor rows. The
+        // ring is measured from the LIVE boss: while the raid waits, he walks past
+        // the Wyrmguard pack (four Overseers and a Wyrmguard, on his path), and with
+        // Overseers in the list the room clear went for it with him beside it
+        // (10/21 evening, 18:18:03: "kept=4 ... 12461x4"). That pack is killed after
+        // him; the floor packs' own Overseers are their rows'.
+        { 469, 11983, 47.0f, { 13996, 12459, 12457 }, false, 0.0f, 0.0f,
           /*pullOutRadius*/ 10.0f, /*skirtRadius*/ 40.0f },
 
         // Blackwing Lair (469): Broodlord Lashlayer. No scripted room pull; the
