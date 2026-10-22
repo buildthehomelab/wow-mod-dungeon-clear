@@ -53,7 +53,11 @@ See [Configuration](#configuration).
 
 ## Install
 
-1. Clone into `modules/mod-dungeon-clear/`.
+1. Clone into `modules/mod-dungeon-clear/` (run inside AzerothCore's `modules/`; the default branch is `evermore`):
+
+   ```
+   git clone https://github.com/buildthehomelab/wow-mod-dungeon-clear.git mod-dungeon-clear
+   ```
 2. Re-run CMake and rebuild the worldserver (`-DMODULES=static`).
 3. Optionally copy `conf/mod_dungeon_clear.conf.dist` to
    `mod_dungeon_clear.conf`.
