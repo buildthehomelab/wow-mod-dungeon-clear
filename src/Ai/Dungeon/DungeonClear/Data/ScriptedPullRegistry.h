@@ -111,6 +111,16 @@ struct ScriptedPullStage
     // The stage only arms while this boss is the run's next objective, so the
     // plan can never fire on the way past the room after the boss is dead.
     uint32 bossEntry{0};
+    // A second objective the stage is also due under, 0 for none. Blackwing Lair's
+    // floor rows are due while Firemaw is next and again while Ebonroc is, so a
+    // pack left standing when Firemaw dies early is still pulled from its row.
+    uint32 alsoBossEntry{0};
+
+    // Is the stage due while `boss` is the run's next objective?
+    bool DueFor(uint32 boss) const
+    {
+        return boss != 0 && (boss == bossEntry || boss == alsoBossEntry);
+    }
     // Pull sequence within the map, ascending. Stage N+1 only arms once stage N's
     // volume holds no live pack member — i.e. once that pack has been peeled out
     // and killed. Must be unique per map (it is the stage's identity: the in-flight

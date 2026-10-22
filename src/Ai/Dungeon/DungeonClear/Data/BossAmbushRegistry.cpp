@@ -30,6 +30,23 @@ namespace
             // maxWaitMs 90000: two and a half laps.
             { 409, 12056, 747.0f, -972.6f, -180.3f, /*arriveRadius*/ 8.0f,
               /*maxWaitMs*/ 90000 },
+
+            // Blackwing Lair (469): Firemaw. He walks path 845720 out and back,
+            // 246yd each way (walk speed, ~200s a lap): from 40yd east of
+            // Broodlord's spawn through the floor packs and the Wyrmguard pack, up
+            // the ramp past the landing pack, onto the 465 tier and back. Chased,
+            // he is caught wherever he happens to be, on top of whatever pack is
+            // there; the 10/21 morning run had him join a hall fight 41s in.
+            //
+            // The spot is waypoint 1, the near end of his path, where he turns.
+            // The three floor packs within 50yd of it (door 15.8yd, south 24.8,
+            // north 45.2) are the scripted rows that run before him (orders 2-4,
+            // ScriptedPullRegistry), and everything else is 80yd+ away: the
+            // Wyrmguard pack 83yd, the landing pack 101yd.
+            //
+            // maxWaitMs 300000: one and a half laps.
+            { 469, 11983, -7534.6f, -1036.2f, 448.9f, /*arriveRadius*/ 8.0f,
+              /*maxWaitMs*/ 300000 },
         };
         return rows;
     }
