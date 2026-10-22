@@ -388,8 +388,11 @@ public:
         Creature* creature = nullptr;
         bool closing = false;
     };
+    // `onlyEntries`, when given and not empty, narrows the threats to those creature
+    // entries (ScriptedPullStage::patrolGuardEntries).
     static PatrolThreat PatrolThreatNear(Player* bot, AiObjectContext* ctx, Unit* target,
-                                         Position const* camp);
+                                         Position const* camp,
+                                         std::vector<uint32> const* onlyEntries = nullptr);
 
     // DungeonClearMath::IsPatrolMover resolved for a live creature: its DB movement
     // type, its formation leader's, and — for a boss — how far that movement takes

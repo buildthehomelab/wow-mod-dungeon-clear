@@ -1165,7 +1165,9 @@ bool DungeonClearPullAction::Execute(Event /*event*/)
             {
                 Unit* const packNow = DcTargeting::GetPullTarget(botAI);
                 DcEngageGeometry::PatrolThreat const guard =
-                    packNow ? DcEngageGeometry::PatrolThreatNear(bot, context, packNow, &camp)
+                    packNow ? DcEngageGeometry::PatrolThreatNear(
+                                  bot, context, packNow, &camp,
+                                  guardedStage ? &guardedStage->patrolGuardEntries : nullptr)
                             : DcEngageGeometry::PatrolThreat{};
                 uint32 const waitMs =
                     uint32(DcSettings::GetFloat(bot, "PullPatrolWaitSec") * 1000.0f);
