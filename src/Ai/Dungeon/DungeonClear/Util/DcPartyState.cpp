@@ -61,6 +61,7 @@
 #include "Ai/Dungeon/DungeonClear/Util/ChunkedPathfinder.h"
 #include "Ai/Dungeon/DungeonClear/Util/DcCombatFlag.h"
 #include "Ai/Dungeon/DungeonClear/Util/DcLeaderSignal.h"
+#include "Ai/Dungeon/DungeonClear/Util/DcPlayerbotCompat.h"
 #include "Ai/Dungeon/DungeonClear/Util/DcRezRecovery.h"
 #include "Ai/Dungeon/DungeonClear/Util/DcRun.h"
 #include "Ai/Dungeon/DungeonClear/Util/DcSmartRest.h"
@@ -68,6 +69,69 @@
 #include "Ai/Dungeon/DungeonClear/Util/NavmeshSnap.h"
 #include "Ai/Dungeon/DungeonClear/Value/DungeonClearLiveBossValue.h"
 #include "Ai/Dungeon/DungeonClear/DcValueKeys.h"
+#include "Ai/Dungeon/DungeonClear/DcApproachState.h"
+
+namespace
+{
+    // A real player who ran on ahead of the tank, standing on the route it is
+    // about to walk. Without this the spread gate holds the tank for them as if
+    // they had been left behind, and the run sits until they walk back.
+    // Bots are excluded on purpose (see IsPartyReady in the header).
+    bool IsHumanAheadOnRoute(Player* bot, Player* member,
+                             std::vector<PathSegment> const* route, float maxOffRoute)
+    {
+        if (!route || route->empty() || !DcPlayerbotCompat::IsRealPlayer(member))
+            return false;
+        // Chain the polylines, not the segment endpoints — see the blocking-door
+        // value for why the endpoints alone collapse the route to a bee-line.
+        std::vector<G3D::Vector3> pts;
+        for (PathSegment const& seg : *route)
+        {
+            if (seg.polyline.empty())
+                pts.emplace_back(seg.ex, seg.ey, seg.ez);
+            else
+                pts.insert(pts.end(), seg.polyline.begin(), seg.polyline.end());
+        }
+        std::size_t cursor = 0;
+        if (!DungeonClearMath::IsAheadOnRoute(
+                pts, bot->GetPositionX(), bot->GetPositionY(), bot->GetPositionZ(),
+                member->GetPositionX(), member->GetPositionY(), member->GetPositionZ(),
+                maxOffRoute, DungeonPathFollower::RESNAP_RADIUS, &cursor))
+            return false;
+        // Distance alone reads a player left in a corridor BEHIND the party as
+        // ahead wherever a later loop of the route passes the far side of the
+        // wall. Line of sight to the cursor vertex is the half that tells "on
+        // the route" from "through a wall" — the blocking-door value's Resnap
+        // pair, static VMAP only for the same reason (a shut door is not a wall).
+        Map* const map = member->GetMap();
+        return map &&
+               map->isInLineOfSight(member->GetPositionX(), member->GetPositionY(),
+                                    member->GetPositionZ() + 1.5f,
+                                    pts[cursor].x, pts[cursor].y, pts[cursor].z + 1.5f,
+                                    member->GetPhaseMask(), LINEOFSIGHT_CHECK_VMAP,
+                                    VMAP::ModelIgnoreFlags::Nothing);
+    }
+
+    // The distance half of IsPartyReady's per-member bars, shared with
+    // DescribePartyNotReady so the panel never names a wait the gate waived.
+    bool IsMemberOutOfRange(Player* bot, Player* member, float maxSpread,
+                            Position const* spreadAnchor, float maxTankGap,
+                            std::vector<PathSegment> const* aheadRoute)
+    {
+        if (member == bot)
+            return false;
+        float const spread = spreadAnchor ? member->GetDistance(*spreadAnchor)
+                                          : bot->GetDistance(member);
+        // Absolute tank<->member backstop (camp-anchored mode only): a stale
+        // camp sitting where the party stands passes the anchored spread
+        // forever while the tank glides away — cap the real gap too.
+        bool const far = spread > maxSpread ||
+                         (maxTankGap > 0.0f && bot->GetDistance(member) > maxTankGap);
+        // Off the route by more than the spread itself is not "on it": the
+        // player is then no nearer the tank's walk than an ordinary straggler.
+        return far && !IsHumanAheadOnRoute(bot, member, aheadRoute, maxSpread);
+    }
+}
 
 float DcPartyState::RestMinHpPct(Player* bot)
 {
@@ -96,7 +160,8 @@ float DcPartyState::RestMinMpPct(Player* bot)
     return std::min(75.0f, static_cast<float>(DC_PB_CONFIG(HighMana, highMana)));
 }
 bool DcPartyState::IsPartyReady(Player* bot, float minHpPct, float minMpPct, float maxSpread,
-                                Position const* spreadAnchor, float maxTankGap)
+                                Position const* spreadAnchor, float maxTankGap,
+                                std::vector<PathSegment> const* aheadRoute)
 {
     if (!bot)
         return false;
@@ -108,18 +173,8 @@ bool DcPartyState::IsPartyReady(Player* bot, float minHpPct, float minMpPct, flo
     // walk and the raid quorum walk below judge a member identically.
     auto const memberMeetsBars = [&](Player* member)
     {
-        if (member != bot)
-        {
-            float const spread = spreadAnchor ? member->GetDistance(*spreadAnchor)
-                                              : bot->GetDistance(member);
-            if (spread > maxSpread)
-                return false;
-            // Absolute tank<->member backstop (camp-anchored mode only): a stale
-            // camp sitting where the party stands passes the anchored spread
-            // forever while the tank glides away — cap the real gap too.
-            if (maxTankGap > 0.0f && bot->GetDistance(member) > maxTankGap)
-                return false;
-        }
+        if (IsMemberOutOfRange(bot, member, maxSpread, spreadAnchor, maxTankGap, aheadRoute))
+            return false;
         if (member->GetHealthPct() < minHpPct)
             return false;
         if (member->getPowerType() == POWER_MANA)
@@ -198,6 +253,21 @@ DcPartyState::SpreadGate DcPartyState::GetSpreadGate(Player* bot, AiObjectContex
     SpreadGate gate{DcSettings::GetFloat(bot, "PartyMaxSpread"), nullptr};
     if (!context)
         return gate;
+
+    // The route a run-ahead player is measured along. Only while the cached
+    // path is still the path to the CURRENT target: Advance yields through a
+    // fight or a rest without rebuilding, so after a kill the previous target's
+    // route stays cached and says nothing about where the tank goes next.
+    if (std::optional<DungeonBossInfo> const target =
+            context->GetValue<std::optional<DungeonBossInfo>>(DcKey::NextDungeonBoss)->Get())
+    {
+        ChunkedPathfinder::Result const& path =
+            context->GetValue<ChunkedPathfinder::Result&>(DcKey::LongPath)->Get();
+        if (path.reachable && !path.segments.empty() &&
+            context->GetValue<DcApproachState&>(DcKey::ApproachState)->Get().longPathTargetEntry ==
+                target->entry)
+            gate.aheadRoute = &path.segments;
+    }
 
     // A PARTY WITH A RIDER IN IT IS NOT MEASURED BY SPREAD. Distances between a
     // drake and a member on foot — or between two drakes on their lanes — say
@@ -395,14 +465,15 @@ bool DcPartyState::IsBetweenPullsReady(Player* bot, AiObjectContext* context, bo
         SpreadGate const gate = GetSpreadGate(bot, context);
         // Thresholds 0 = spread-only readiness; recovery is the latch's job.
         return !latched &&
-               IsPartyReady(bot, 0.0f, 0.0f, gate.maxSpread, gate.anchor, gate.maxTankGap);
+               IsPartyReady(bot, 0.0f, 0.0f, gate.maxSpread, gate.anchor, gate.maxTankGap,
+                            gate.aheadRoute);
     }
     if (requireNoLoot && context->GetValue<bool>(DcKey::Stock::HasAvailableLoot)->Get())
         return false;
     SpreadGate const gate = GetSpreadGate(bot, context);
     RestGate const rest = GetRestGate(bot, context);
     return IsPartyReady(bot, rest.minHp, rest.minMp, gate.maxSpread, gate.anchor,
-                        gate.maxTankGap);
+                        gate.maxTankGap, gate.aheadRoute);
 }
 bool DcPartyState::IsScriptedStageMustering(Player* bot, AiObjectContext* context)
 {
@@ -532,7 +603,8 @@ std::string DcPartyState::DescribePartyNotReady(Player* bot,
                                                     float minHpPct, float minMpPct,
                                                     float maxSpread,
                                                     Position const* spreadAnchor,
-                                                    float maxTankGap)
+                                                    float maxTankGap,
+                                                    std::vector<PathSegment> const* aheadRoute)
 {
     if (!bot)
         return "";
@@ -560,10 +632,7 @@ std::string DcPartyState::DescribePartyNotReady(Player* bot,
         // matters only for which single reason we surface first; distance reads
         // most intuitively, then health, then mana.
         std::string reason;
-        if (member != bot &&
-            ((spreadAnchor ? member->GetDistance(*spreadAnchor)
-                           : bot->GetDistance(member)) > maxSpread ||
-             (maxTankGap > 0.0f && bot->GetDistance(member) > maxTankGap)))
+        if (IsMemberOutOfRange(bot, member, maxSpread, spreadAnchor, maxTankGap, aheadRoute))
             reason = "out of range";
         else if (member->GetHealthPct() < minHpPct)
             reason = "low HP";

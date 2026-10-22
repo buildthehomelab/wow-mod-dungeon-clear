@@ -766,7 +766,7 @@ DungeonClearAdvanceAction::Step DungeonClearAdvanceAction::TryLootYield(AdvanceS
 
 // Between-pulls rest: yield so food/drink can run and stragglers catch up.
 // The multiplier suppresses wander actions during the wait.
-DungeonClearAdvanceAction::Step DungeonClearAdvanceAction::TryBetweenPullsRest(AdvanceState const& /*st*/)
+DungeonClearAdvanceAction::Step DungeonClearAdvanceAction::TryBetweenPullsRest(AdvanceState const& st)
 {
     // From the context, NOT st.appr: this gate runs in the PRE-ROUTE part of the
     // ladder, well before Execute fills st.appr, so st.appr is still null here
@@ -796,6 +796,26 @@ DungeonClearAdvanceAction::Step DungeonClearAdvanceAction::TryBetweenPullsRest(A
     {
         appr.partyNotReadyTicks = 0;
         return Step::Continue;
+    }
+
+    // Keep the route to the CURRENT target built while we hold. This yield sits
+    // ahead of the only other EnsureLongPath call, so after a kill, objective or
+    // skip the cached route stays the previous target's for the whole wait — and
+    // the spread gate's run-ahead waiver only trusts a route to the current
+    // target. A player who walked on toward the next boss during the rest was
+    // then held for as "out of range" forever. Building moves nothing (async
+    // submits a job; the install only re-seeds the follower cursor), and once
+    // the route matches this is skipped. A pending job keeps us calling: the
+    // async submit stamps longPathTargetEntry at SUBMIT time with the cache
+    // still empty, and only a later EnsureLongPath drains and installs it (or
+    // runs its lost-job sync fallback).
+    if (appr.longPathTargetEntry != st.next->entry || appr.pendingPathJob)
+    {
+        DungeonBossInfo effectiveTarget = *st.next;
+        effectiveTarget.x = st.bossX;
+        effectiveTarget.y = st.bossY;
+        effectiveTarget.z = st.bossZ;
+        EnsureLongPath(bot, context, appr, effectiveTarget);
     }
 
     // Debounce. Halting means StopBot(Hold), which cancels the escort spline, so
@@ -836,7 +856,7 @@ DungeonClearAdvanceAction::Step DungeonClearAdvanceAction::TryBetweenPullsRest(A
     DcPartyState::RestGate const rest = DcPartyState::GetRestGate(bot, context);
     std::string const why = DcPartyState::DescribePartyNotReady(
         bot, rest.minHp, rest.minMp,
-        gate.maxSpread, gate.anchor, gate.maxTankGap);
+        gate.maxSpread, gate.anchor, gate.maxTankGap, gate.aheadRoute);
     LOG_DEBUG("playerbots.dungeonclear",
               "[DC:{}] advance yielding after {} ticks: party not ready / resting{}",
               bot->GetName(), appr.partyNotReadyTicks,
