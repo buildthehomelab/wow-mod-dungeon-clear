@@ -1493,6 +1493,7 @@ namespace DungeonClearMath
         float campX = 0.0f;
         float campY = 0.0f;
         float margin = 0.0f;   // min over keep-aways of dist(lane) - radius
+        float firstMargin = 0.0f;  // the same against the first keep-away alone
         float walk = 0.0f;     // tank's straight-line distance to the stand spot
         float score = 0.0f;    // margin, less a small charge for the walk
     };
@@ -1535,7 +1536,9 @@ namespace DungeonClearMath
     // [minDrag, drag] that is inside the camp box (when there is one). The lane
     // scored is stand -> camp, where the tank and the fight stand, AND the tank's
     // walk out to the stand spot; its margin is the worst clearance over the
-    // keep-aways. Bearings with no in-box camp are dropped.
+    // keep-aways (`firstMargin`: against the first one alone, the room's boss for
+    // ComputeRoomClearLane, its walk term counted even when the tank stands inside
+    // it). Bearings with no in-box camp are dropped.
     //
     // The walk counts because that is where the second pack came from in
     // tr-20260927-210901-8: the lane itself cleared everything, and the tank woke
@@ -1588,20 +1591,27 @@ namespace DungeonClearMath
                 continue;
 
             lane.margin = StraightPullMarginCap;
-            for (LaneKeepAway const& k : keepAways)
+            for (std::size_t ki = 0; ki < keepAways.size(); ++ki)
             {
+                LaneKeepAway const& k = keepAways[ki];
                 lane.margin = std::min(
                     lane.margin, PointSegmentDist2d(k.x, k.y, lane.standX, lane.standY,
                                                     lane.campX, lane.campY) -
                                      k.radius);
                 float const tdx = tankX - k.x;
                 float const tdy = tankY - k.y;
+                float const walkClear = PointSegmentDist2d(k.x, k.y, tankX, tankY,
+                                                           lane.standX, lane.standY) -
+                                        k.radius;
                 if (tdx * tdx + tdy * tdy >= k.radius * k.radius)
-                    lane.margin = std::min(
-                        lane.margin, PointSegmentDist2d(k.x, k.y, tankX, tankY,
-                                                        lane.standX, lane.standY) -
-                                         k.radius);
+                    lane.margin = std::min(lane.margin, walkClear);
+                // The first keep-away's walk counts even from inside it: a tank
+                // waiting inside a patrolling boss's keep must not walk past him.
+                if (ki == 0)
+                    lane.firstMargin = std::min(lane.margin, walkClear);
             }
+            if (keepAways.empty())
+                lane.firstMargin = lane.margin;
             float const wx = lane.standX - tankX;
             float const wy = lane.standY - tankY;
             lane.walk = std::sqrt(wx * wx + wy * wy);

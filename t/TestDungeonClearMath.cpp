@@ -3610,6 +3610,65 @@ TEST(DungeonClearStraightPullTest, WalkToTheStandSpotCountsAgainstTheMargin)
     }
 }
 
+TEST(DungeonClearStraightPullTest, FirstMarginCountsTheFirstKeepAwayAlone)
+{
+    // Molten Core, 2026-10-21: every hound pack round Lucifron was refused and the
+    // last resort walked the tank 25yd past him (keep 40). The boss is the first
+    // keep-away; firstMargin is the lane against him alone, the last resort's
+    // floor. Pack at the origin, tank 40yd east; the boss north of the walk out,
+    // a second pack right on the west lane.
+    std::vector<DungeonClearMath::LaneKeepAway> const keep = {{20.0f, 30.0f, 25.0f},
+                                                              {-30.0f, 0.0f, 20.0f}};
+    auto const lanes = DungeonClearMath::RankStraightPullLanes(
+        0, 0, 40.0f, 0, 20.0f, 25.0f, 12.5f, keep, false, 0, 0, 0, 0);
+    ASSERT_FALSE(lanes.empty());
+    bool sawPackOnly = false;
+    for (auto const& l : lanes)
+    {
+        EXPECT_GE(l.firstMargin, l.margin - 1e-3f);
+        float boss = DungeonClearMath::PointSegmentDist2d(20.0f, 30.0f, l.standX, l.standY,
+                                                          l.campX, l.campY);
+        boss = std::min(boss, DungeonClearMath::PointSegmentDist2d(20.0f, 30.0f, 40.0f, 0,
+                                                                   l.standX, l.standY));
+        EXPECT_NEAR(l.firstMargin, std::min(boss - 25.0f, DungeonClearMath::StraightPullMarginCap),
+                    1e-3f);
+        // A lane only the other pack spoils: unclean, yet clear of the boss.
+        if (l.margin < 0.0f && l.firstMargin >= 0.0f)
+            sawPackOnly = true;
+    }
+    EXPECT_TRUE(sawPackOnly);
+}
+
+TEST(DungeonClearStraightPullTest, FirstMarginCountsTheWalkFromInsideTheBossKeep)
+{
+    // A tank waiting out a patrolling boss can end up inside his keep as he walks
+    // by. The margin leaves that walk out (it would sink every lane alike), but the
+    // boss's own margin keeps it: the walk out to the stand spot must still clear
+    // him. Boss 10yd north of the tank (keep 25), pack 40yd west.
+    std::vector<DungeonClearMath::LaneKeepAway> const keep = {{0.0f, 10.0f, 25.0f}};
+    auto const lanes = DungeonClearMath::RankStraightPullLanes(
+        -40.0f, 0, 0, 0, 20.0f, 25.0f, 12.5f, keep, false, 0, 0, 0, 0);
+    ASSERT_FALSE(lanes.empty());
+    for (auto const& l : lanes)
+    {
+        float const walk = DungeonClearMath::PointSegmentDist2d(0.0f, 10.0f, 0, 0,
+                                                                l.standX, l.standY);
+        EXPECT_LE(l.firstMargin, walk - 25.0f + 1e-3f);
+        EXPECT_LE(l.firstMargin, l.margin + 1e-3f);
+        EXPECT_LT(l.firstMargin, 0.0f);  // every walk starts 10yd from him
+    }
+}
+
+TEST(DungeonClearStraightPullTest, FirstMarginWithNoKeepAwaysIsTheCap)
+{
+    std::vector<DungeonClearMath::LaneKeepAway> const none;
+    auto const lanes = DungeonClearMath::RankStraightPullLanes(
+        0, 0, 0, -50.0f, 20.0f, 25.0f, 12.5f, none, false, 0, 0, 0, 0);
+    ASSERT_FALSE(lanes.empty());
+    for (auto const& l : lanes)
+        EXPECT_EQ(l.firstMargin, DungeonClearMath::StraightPullMarginCap);
+}
+
 TEST(DungeonClearStraightPullTest, AKeepAwayTheTankStandsInDoesNotSinkEveryWalk)
 {
     // The tank is already inside the disc: every walk starts in it, so the walk term

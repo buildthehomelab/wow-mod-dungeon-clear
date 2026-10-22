@@ -112,13 +112,16 @@ public:
     // inside the room's camp box. Both points are navmesh-snapped, reachable,
     // on the pack's floor, and the stand spot sees the pack. `requireClean`
     // also rejects every lane with a negative margin (its walk, tag spot or drag
-    // inside a keep-away). nullopt when no bearing passes — the caller defers the
-    // pack, or on its last resort falls back to the walk-in and trail camp.
+    // inside a keep-away). `requireBossClear` rejects only the lanes inside the
+    // boss's own (other packs may be passed): the last resort's floor. nullopt
+    // when no bearing passes — the caller defers the pack, or on its last resort
+    // falls back to the walk-in and trail camp.
     struct RoomClearLane
     {
         Position stand;
         Position camp;
         float margin = 0.0f;
+        float bossMargin = 0.0f;
     };
     static std::optional<RoomClearLane> ComputeRoomClearLane(PlayerbotAI* botAI,
                                                              Unit* target, Unit* boss,
@@ -126,7 +129,8 @@ public:
                                                              float standDist,
                                                              float setback,
                                                              float safeRadius,
-                                                             bool requireClean);
+                                                             bool requireClean,
+                                                             bool requireBossClear = false);
 
     // Lean, target-less twin of ComputeSafeCamp for the Idle SCOUT phase: returns
     // a point `setback` back along the breadcrumb trail behind the tank (the
