@@ -2107,3 +2107,6 @@ DungeonClear.BgQueueFill.GearQuality = 0
 #
 
 DungeonClear.BgQueueFill.LogoutOnRelease = 1
+
+# Opt-in sequential Blackfathom fire waves after Kelris; waits for the scripted door.
+DungeonClear.EnableBlackfathomFireEvent = 0

@@ -60,6 +60,7 @@ bool DcRoomAggroPreClearCondition(Player* bot, AiObjectContext* context);
 // --- event rows (one appender per dungeon) -------------------------------
 void RegisterSunkenTempleEvents(std::vector<DungeonEvent>& out);
 void RegisterZulFarrakEvents(std::vector<DungeonEvent>& out);
+void RegisterBlackfathomEvents(std::vector<DungeonEvent>& out);
 void RegisterShadowfangKeepEvents(std::vector<DungeonEvent>& out);
 void RegisterScarletMonasteryEvents(std::vector<DungeonEvent>& out);
 void RegisterRazorfenDownsEvents(std::vector<DungeonEvent>& out);

@@ -471,6 +471,7 @@ namespace
             std::vector<DungeonEvent> t;
             // Order here is table-scan order only; lookups key on mapId + id, so
             // it never affects behaviour.
+            RegisterBlackfathomEvents(t);
             RegisterShadowfangKeepEvents(t);
             RegisterScarletMonasteryEvents(t);
             RegisterRazorfenDownsEvents(t);

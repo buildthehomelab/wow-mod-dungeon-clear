@@ -29,6 +29,7 @@ namespace DcEventDoorRegistry
     {
         switch (goEntry)
         {
+            case 21117:  // Blackfathom Deeps — four fires and all summoned waves
             case 18895:  // Shadowfang Keep — Courtyard Door (freed-prisoner event)
             // Shadowfang Keep's other two gates, both empty-lock-85 like the
             // Courtyard Door and both driven purely by SmartAI:
