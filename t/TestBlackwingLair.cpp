@@ -1813,6 +1813,13 @@ TEST(DcBlackwingLairTechnicianHallTest, EightPacksInKillOrderWithTheirBoss)
     {
         ScriptedPullStage const& s = DtRow(pack.order);
         bool const floor = pack.order <= 4;
+        // The middle 465 pack waits for Ebonroc (TheMiddlePackWaitsForEbonroc).
+        if (pack.order == 8)
+        {
+            EXPECT_EQ(s.bossEntry, 11981u) << s.name;
+            EXPECT_FALSE(s.DueFor(NPC_EBONROC_ENTRY)) << s.name;
+            continue;
+        }
         // The floor rows are due before Firemaw and, if he dies early, after him.
         EXPECT_EQ(s.bossEntry, floor ? NPC_FIREMAW_ENTRY : NPC_EBONROC_ENTRY) << s.name;
         EXPECT_TRUE(s.DueFor(NPC_EBONROC_ENTRY)) << s.name;
@@ -2169,6 +2176,39 @@ TEST(DcBlackwingLairWyrmguardTest, EbonrocIsAmbushedBesideTheTankSpotAfterTrioB)
 
 // Each trio row arms where the tank stands when it comes due (row 9's camp, Ebonroc's
 // tank spot) and stays armed at its stand spot and camp.
+// The middle 465 pack stands 20-24yd from the foot of Ebonroc's ramp, and a lap of his path
+// takes ~34s: no fight with it fits between two of his visits (10/22, twice, one a wipe). It
+// is fought after him, while Flamegor is next, before Flamegor's Wyrmguards; everything the
+// raid does before then keeps clear of it.
+TEST(DcBlackwingLairWyrmguardTest, TheMiddlePackWaitsForEbonroc)
+{
+    ScriptedPullStage const& middle = DtRow(8);
+    EXPECT_FALSE(middle.DueFor(NPC_EBONROC_ENTRY));
+    EXPECT_TRUE(middle.DueFor(NPC_FLAMEGOR_ENTRY));
+    EXPECT_LT(middle.order, static_cast<uint32>(ROW_TRIO_A));
+    float nearestToPath = 1e9f;
+    for (Spawn const& m : kTierMiddlePack)
+        nearestToPath = std::min(nearestToPath, DistToEbonrocPath(m.x, m.y));
+    EXPECT_LT(nearestToPath, 25.0f) << "the reason it waits";
+
+    // With it up: the east camp the trio is dragged to, the trio's stand spot and the ambush
+    // spot, by more than an elite's reach; the tank spot Ebonroc is held on further still.
+    ScriptedPullStage const& b = DtRow(ROW_TRIO_B);
+    BossAmbush const* e = BossAmbushRegistry::Find(MAP_ID, NPC_EBONROC_ENTRY);
+    ASSERT_NE(e, nullptr);
+    float const reach = ELITE_REACH + CAMP_SPREAD;
+    EXPECT_GT(Nearest(b.campX, b.campY, kTierMiddlePack), reach);
+    EXPECT_GT(Nearest(b.standX, b.standY, kTierMiddlePack), reach);
+    EXPECT_GT(Nearest(e->x, e->y, kTierMiddlePack), reach);
+    EXPECT_GT(Nearest(kEbonrocTankSpot.x, kEbonrocTankSpot.y, kTierMiddlePack), reach + 10.0f);
+
+    // It arms from where Ebonroc dies: his tank spot or the foot of his ramp.
+    Spawn const& foot = kEbonrocPath[std::size(kEbonrocPath) - 1];
+    EXPECT_TRUE(ScriptedPullRegistry::InArmRange(middle, kEbonrocTankSpot.x, kEbonrocTankSpot.y,
+                                                 kEbonrocTankSpot.z));
+    EXPECT_TRUE(ScriptedPullRegistry::InArmRange(middle, foot.x, foot.y, foot.z));
+}
+
 TEST(DcBlackwingLairWyrmguardTest, TrioRowsArmWhereTheTankStands)
 {
     ScriptedPullStage const& b = DtRow(ROW_TRIO_B);
