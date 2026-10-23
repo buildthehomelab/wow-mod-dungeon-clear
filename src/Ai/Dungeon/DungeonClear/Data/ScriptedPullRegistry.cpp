@@ -682,7 +682,13 @@ namespace
     // trio at the foot of his ramp. Then Ebonroc is ambushed beside the tank spot
     // (BossAmbushRegistry, afterStage 10).
     //
-    // ORDER 11, TRIO A (Flamegor next): tagged at range from the 477 tier on the
+    // ORDER 11, TRIO A, REMOVED (10/22 evening). The tag walk to its stand spot passes
+    // Flamegor: the tank touched him at 22.6yd in the middle of that walk (pull phase 2,
+    // stage 11) and he was fought first anyway, the trio after. The row is kept below as
+    // the record of what was tried; Flamegor is fought at his spawn, and his trio after
+    // him, as in every run that day (1-2 deaths).
+    //
+    // As it was: tagged at range from the 477 tier on the
     // ramp side of the trio and dragged to the foot of Ebonroc's ramp, node 7 of his path: walked
     // ground, 68.0yd from Flamegor's spawn, 58yd from the edge of his wander. The
     // stand spot (-7445.0, -1008.0, 477.0) is 28.3yd from the nearest Wyrmguard
@@ -979,20 +985,6 @@ namespace
             trioB.patrolGuardEntries = {BWL_EBONROC};
             t.push_back(trioB);
 
-            ScriptedPullStage trioA;
-            trioA.mapId      = BWL_MAP;
-            trioA.bossEntry  = BWL_FLAMEGOR;
-            trioA.order      = 11;
-            trioA.name       = "Blackwing Lair — Flamegor's Wyrmguards";
-            trioA.campX      = -7414.41f; trioA.campY  = -963.30f;  trioA.campZ  = 466.54f;
-            trioA.standX     = -7445.00f; trioA.standY = -1008.00f; trioA.standZ = 477.00f;
-            trioA.packX      = -7443.70f; trioA.packY  = -1044.80f; trioA.packZ  = 477.00f;
-            trioA.packRadius = 14.0f;
-            trioA.packZBand  = BWL_TRIO_ZBAND;
-            trioA.armX       = trioA.campX; trioA.armY = trioA.campY; trioA.armZ = trioA.campZ;
-            trioA.armRadius  = BWL_TRIO_ARM_R;
-            trioA.entries    = {BWL_DT_WYRMGUARD};
-            t.push_back(trioA);
 
             std::stable_sort(t.begin(), t.end(),
                              [](ScriptedPullStage const& a, ScriptedPullStage const& b)
