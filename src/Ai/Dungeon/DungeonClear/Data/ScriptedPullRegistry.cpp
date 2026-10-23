@@ -612,7 +612,8 @@ namespace
     //   Then Firemaw, at his near end, with nothing left in 80yd of it.
     //
     //   AFTER HIM (orders 5-9, Ebonroc next): the Wyrmguard pack on his path, the
-    //   landing pack, then the 465 tier north, middle, east. Each camp is a spawn
+    //   landing pack, then the 465 tier north, middle, east. The middle pack (order 8)
+    //   has since moved to after Ebonroc: see THE MIDDLE PACK WAITS FOR EBONROC below. Each camp is a spawn
     //   point inside its own pack (floor by construction), so the tank walks in and
     //   the fight is where they stand; each is 35yd+ from every pack still up after
     //   it, counting the 465 Overseers' and the middle Spellbinder's paths. North
@@ -633,6 +634,20 @@ namespace
     float constexpr BWL_UPPER_ARM_R = 110.0f;
     float constexpr BWL_TIER_ARM_R  = 100.0f;
     float constexpr BWL_HALL_ZBAND  = 4.0f;
+
+    // THE MIDDLE PACK WAITS FOR EBONROC. Its south edge stands 20-24yd from the foot of his
+    // ramp, the end of his path: Warlock 85775 at (-7433.4, -956.2) is 20.3yd from it,
+    // Technicians 84154/84159 23.0/23.9. He walks at 5yd/s (speed_walk 2), so a lap of his
+    // 86yd path takes ~34s and no fight with that pack fits between two of his visits. Twice on
+    // 10/22 (19:15 and 22:36) the middle pack's fight drew the east pack in, Ebonroc walked into
+    // it 86-105s after the tag, the raid's healers first, and then the Wyrmguards he patrols past;
+    // one of the two was a wipe. So the middle row is due while FLAMEGOR is next: the east pack,
+    // Ebonroc's Wyrmguards and Ebonroc go first, and the middle pack is fought with nothing
+    // walking past it. With it still up, the closest anything else comes is 27.7yd (the
+    // Wyrmguards' run back to the east camp, mobs that don't wake it) and 40.4yd (the Ebonroc
+    // ambush spot); Ebonroc is held 48.8yd away. Its own camp arms it from wherever Ebonroc
+    // died: 79.9yd from his tank spot, 54.8 from the foot of his ramp.
+    float constexpr BWL_MIDDLE_ARM_R = 125.0f;
 
     // BLACKWING LAIR — THE TWO WYRMGUARD TRIOS, Ebonroc and Flamegor.
     //
@@ -908,9 +923,10 @@ namespace
                 { 7, BWL_EBONROC, 0, "Blackwing Lair — Technician hall, the north 465 pack",
                   -7472.80f, -870.70f, 465.10f, -7468.50f, -877.50f, 465.10f, 25.0f,
                   BWL_LANDING_CAMP_X, BWL_LANDING_CAMP_Y, BWL_LANDING_CAMP_Z, BWL_TIER_ARM_R, false },
-                { 8, BWL_EBONROC, 0, "Blackwing Lair — Technician hall, the middle 465 pack",
+                // After Ebonroc, not before him: see THE MIDDLE PACK WAITS FOR EBONROC above.
+                { 8, BWL_FLAMEGOR, 0, "Blackwing Lair — Technician hall, the middle 465 pack",
                   -7462.50f, -937.10f, 465.10f, -7450.50f, -942.80f, 465.10f, 32.0f,
-                  BWL_LANDING_CAMP_X, BWL_LANDING_CAMP_Y, BWL_LANDING_CAMP_Z, BWL_TIER_ARM_R, false },
+                  -7462.50f, -937.10f, 465.10f, BWL_MIDDLE_ARM_R, false },
                 { 9, BWL_EBONROC, 0, "Blackwing Lair — Technician hall, the east 465 pack",
                   -7419.30f, -895.40f, 465.10f, -7414.40f, -915.60f, 465.20f, 29.0f,
                   BWL_LANDING_CAMP_X, BWL_LANDING_CAMP_Y, BWL_LANDING_CAMP_Z, BWL_TIER_ARM_R, false },
