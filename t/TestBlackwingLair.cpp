@@ -1911,8 +1911,7 @@ TEST(DcBlackwingLairTechnicianHallTest, FiremawIsAmbushedAtTheNearEndOfHisPath)
         else
             EXPECT_GT(d, 80.0f) << "row " << pack.order << " is still up when he is pulled";
     }
-    // No other drake is ambushed.
-    EXPECT_EQ(BossAmbushRegistry::Find(MAP_ID, NPC_EBONROC_ENTRY), nullptr);
+    EXPECT_EQ(a->afterStage, -1);
 }
 
 // The west Death Talon pack was fought 30yd under the landing, and the landing pack and
@@ -1957,6 +1956,212 @@ TEST(DcBlackwingLairTechnicianHallTest, RowsArmWhereTheTankStands)
                 << s.name << " from the row before's camp";
         }
     }
+}
+
+// --- the Wyrmguard trios by Ebonroc and Flamegor (ScriptedPullRegistry rows 10-11) ---
+//
+// 10/22: both drakes were fought with their Wyrmguard trio, 19 of the raid's 35
+// deaths. Trio B is dragged out of Ebonroc's patrol before he is ambushed by the tank
+// spot; trio A is dragged out of Flamegor's reach before he is fought at his spawn.
+// acore_world.creature + creature_formations + waypoint_data, map 469.
+namespace
+{
+    // Formation 84634, and Master Elemental Shaper Krixix (14401) 6yd off it.
+    Spawn const kTrioB[] = {
+        {-7389.70f, -951.74f, 465.15f}, {-7394.61f, -956.29f, 465.15f},
+        {-7400.41f, -961.01f, 465.14f}, {-7398.40f, -967.00f, 465.10f},
+    };
+    // Formation 84648.
+    Spawn const kTrioA[] = {
+        {-7437.04f, -1053.58f, 477.04f}, {-7443.51f, -1045.13f, 477.02f},
+        {-7450.65f, -1035.77f, 477.00f},
+    };
+    // Ebonroc's waypoint path 857800, spawn to the foot of his ramp (and back).
+    Spawn const kEbonrocPath[] = {
+        {-7358.19f, -994.32f, 477.17f}, {-7368.80f, -983.09f, 477.17f},
+        {-7378.30f, -977.79f, 477.17f}, {-7392.39f, -983.38f, 476.91f},
+        {-7405.91f, -987.83f, 473.77f}, {-7418.10f, -976.63f, 469.94f},
+        {-7414.41f, -963.30f, 466.54f},
+    };
+    Spawn const kFlamegor = {-7407.94f, -1031.04f, 477.35f};
+    float constexpr FLAMEGOR_WANDER = 10.0f;
+    // RaidClear.BlackwingLair.Ebonroc.TankSpot as configured for the realm.
+    Spawn const kEbonrocTankSpot = {-7384.6f, -954.8f, 465.0f};
+
+    constexpr uint32 NPC_FLAMEGOR_ENTRY = 11981;
+    constexpr uint32 NPC_WYRMGUARD_ENTRY = 12460;
+    constexpr uint32 NPC_KRIXIX_ENTRY = 14401;
+    constexpr int32 ROW_TRIO_B = 10;
+    constexpr int32 ROW_TRIO_A = 11;
+
+    // 2D distance from (x,y) to the nearest point of Ebonroc's path.
+    float DistToEbonrocPath(float x, float y)
+    {
+        float best = 1e9f;
+        for (std::size_t i = 0; i + 1 < std::size(kEbonrocPath); ++i)
+        {
+            Spawn const& a = kEbonrocPath[i];
+            Spawn const& b = kEbonrocPath[i + 1];
+            float const dx = b.x - a.x, dy = b.y - a.y;
+            float t = ((x - a.x) * dx + (y - a.y) * dy) / (dx * dx + dy * dy);
+            t = std::max(0.0f, std::min(1.0f, t));
+            best = std::min(best, std::hypot(x - (a.x + t * dx), y - (a.y + t * dy)));
+        }
+        return best;
+    }
+}
+
+TEST(DcBlackwingLairWyrmguardTest, EachTrioIsARangedDragDueBeforeItsDrake)
+{
+    ScriptedPullStage const& b = DtRow(ROW_TRIO_B);
+    EXPECT_TRUE(b.DueFor(NPC_EBONROC_ENTRY));
+    EXPECT_FALSE(b.DueFor(NPC_FLAMEGOR_ENTRY));
+    EXPECT_FALSE(b.DueFor(NPC_FIREMAW_ENTRY));
+    EXPECT_FALSE(b.bodyPull);
+    // Ebonroc walks to within 14yd of the trio: the tag waits for him, and only him.
+    EXPECT_TRUE(b.patrolGuard);
+    EXPECT_EQ(b.patrolGuardEntries, std::vector<uint32>{NPC_EBONROC_ENTRY});
+    EXPECT_TRUE(ScriptedPullRegistry::IsPackEntry(b, NPC_WYRMGUARD_ENTRY));
+    EXPECT_TRUE(ScriptedPullRegistry::IsPackEntry(b, NPC_KRIXIX_ENTRY));
+    EXPECT_FALSE(ScriptedPullRegistry::IsPackEntry(b, NPC_EBONROC_ENTRY));
+
+    ScriptedPullStage const& a = DtRow(ROW_TRIO_A);
+    EXPECT_TRUE(a.DueFor(NPC_FLAMEGOR_ENTRY));
+    EXPECT_FALSE(a.DueFor(NPC_EBONROC_ENTRY));
+    EXPECT_FALSE(a.bodyPull);
+    // Flamegor's 10yd wander never reads as a patrol; there is nothing to wait on.
+    EXPECT_FALSE(a.patrolGuard);
+    EXPECT_TRUE(ScriptedPullRegistry::IsPackEntry(a, NPC_WYRMGUARD_ENTRY));
+    EXPECT_FALSE(ScriptedPullRegistry::IsPackEntry(a, NPC_FLAMEGOR_ENTRY));
+
+    // After every Technician hall row, in this order; no pull-back row for the drakes.
+    EXPECT_GT(ROW_TRIO_B, 9);
+    EXPECT_EQ(ScriptedPullRegistry::Find(MAP_ID, ROW_TRIO_A + 1), nullptr);
+}
+
+TEST(DcBlackwingLairWyrmguardTest, EachCylinderHoldsItsTrioAndNothingElse)
+{
+    ScriptedPullStage const& b = DtRow(ROW_TRIO_B);
+    ScriptedPullStage const& a = DtRow(ROW_TRIO_A);
+    for (Spawn const& m : kTrioB)
+    {
+        EXPECT_TRUE(ScriptedPullRegistry::InPack(b, m.x, m.y, m.z));
+        EXPECT_FALSE(ScriptedPullRegistry::InPack(a, m.x, m.y, m.z));
+    }
+    for (Spawn const& m : kTrioA)
+    {
+        EXPECT_TRUE(ScriptedPullRegistry::InPack(a, m.x, m.y, m.z));
+        EXPECT_FALSE(ScriptedPullRegistry::InPack(b, m.x, m.y, m.z));
+    }
+    EXPECT_FALSE(ScriptedPullRegistry::InPack(a, kFlamegor.x, kFlamegor.y, kFlamegor.z));
+    // The hall rows and the trio rows never claim one another's spawns.
+    for (HallPack const& pack : HallPacks())
+        for (std::size_t i = 0; i < pack.count; ++i)
+        {
+            Spawn const& m = pack.members[i];
+            EXPECT_FALSE(ScriptedPullRegistry::InPack(b, m.x, m.y, m.z)) << "row " << pack.order;
+            EXPECT_FALSE(ScriptedPullRegistry::InPack(a, m.x, m.y, m.z)) << "row " << pack.order;
+        }
+    for (Spawn const& m : kTrioB)
+        for (int32 order = 2; order <= 9; ++order)
+            EXPECT_FALSE(ScriptedPullRegistry::InPack(DtRow(order), m.x, m.y, m.z)) << "row " << order;
+}
+
+// 10/22: the camp the dynamic pull dragged trio B to was inside Ebonroc's patrol once
+// the raid spread round it. The row's camp, and a follower on its leash, is 55yd+
+// from every point of his path.
+TEST(DcBlackwingLairWyrmguardTest, TrioBCampIsOutOfEbonrocsPatrol)
+{
+    ScriptedPullStage const& b = DtRow(ROW_TRIO_B);
+    EXPECT_GT(DistToEbonrocPath(b.campX, b.campY) - CAMP_SPREAD, 55.0f);
+    // It is the east 465 camp the raid fought row 9 on, and nothing after row 9 is near it.
+    EXPECT_FLOAT_EQ(b.campX, DtRow(9).campX);
+    EXPECT_FLOAT_EQ(b.campY, DtRow(9).campY);
+    EXPECT_GT(Nearest(b.campX, b.campY, kTrioA), 100.0f);
+    EXPECT_GT(Dist2d(b.campX, b.campY, kFlamegor), 100.0f);
+    // A real drag: the trio has to run out of the patrol to reach it.
+    EXPECT_GT(Nearest(b.campX, b.campY, kTrioB), 55.0f);
+}
+
+// Ranged tag from the stand spot: in opener range (30yd, Avenger's Shield / a gun) of
+// the nearest Wyrmguard, out of Ebonroc's reach at the foot of his ramp, and on the
+// way back to the camp.
+TEST(DcBlackwingLairWyrmguardTest, TrioBStandTagsInRangeOutsideEbonrocsReach)
+{
+    ScriptedPullStage const& b = DtRow(ROW_TRIO_B);
+    EXPECT_LT(Nearest(b.standX, b.standY, kTrioB), 30.0f);
+    EXPECT_GT(Nearest(b.standX, b.standY, kTrioB), ELITE_REACH);
+    EXPECT_GT(DistToEbonrocPath(b.standX, b.standY), 35.0f);
+    EXPECT_LT(std::hypot(b.standX - b.campX, b.standY - b.campY),
+              Nearest(b.campX, b.campY, kTrioB));
+    // The stand spot is 4yd off an east 465 Technician's spawn: 465 floor.
+    EXPECT_LT(Nearest(b.standX, b.standY, kTierEastPack), 5.0f);
+}
+
+// Trio A goes 40yd+ past the edge of Flamegor's wander, to the foot of Ebonroc's ramp:
+// ground Ebonroc walked, empty once he is dead.
+TEST(DcBlackwingLairWyrmguardTest, TrioAIsDraggedOutOfFlamegorsReach)
+{
+    ScriptedPullStage const& a = DtRow(ROW_TRIO_A);
+    Spawn const& foot = kEbonrocPath[std::size(kEbonrocPath) - 1];
+    EXPECT_FLOAT_EQ(a.campX, foot.x);
+    EXPECT_FLOAT_EQ(a.campY, foot.y);
+    EXPECT_GT(Dist2d(a.campX, a.campY, kFlamegor) - FLAMEGOR_WANDER, 40.0f + CAMP_SPREAD);
+    // Tagged at ~30yd, from where he can't see the tank even at the edge of his wander.
+    float const tag = Nearest(a.standX, a.standY, kTrioA);
+    EXPECT_LT(tag, 30.0f);
+    EXPECT_GT(tag, ELITE_REACH);
+    EXPECT_GT(Dist2d(a.standX, a.standY, kFlamegor) - FLAMEGOR_WANDER, 30.0f);
+    // The stand is on the camp side of the trio, not past it.
+    EXPECT_LT(std::hypot(a.standX - a.campX, a.standY - a.campY),
+              Nearest(a.campX, a.campY, kTrioA));
+}
+
+// Ebonroc is waited for beside the tank spot, once trio B is dead. He is taken at the
+// foot of his ramp: within the 30yd engage cap from anywhere in the arrive circle.
+TEST(DcBlackwingLairWyrmguardTest, EbonrocIsAmbushedBesideTheTankSpotAfterTrioB)
+{
+    BossAmbush const* e = BossAmbushRegistry::Find(MAP_ID, NPC_EBONROC_ENTRY);
+    ASSERT_NE(e, nullptr);
+    EXPECT_EQ(e->afterStage, ROW_TRIO_B);
+    EXPECT_LT(Dist2d(e->x, e->y, kEbonrocTankSpot), 10.0f);
+    Spawn const& foot = kEbonrocPath[std::size(kEbonrocPath) - 1];
+    EXPECT_LT(std::hypot(std::hypot(e->x - foot.x, e->y - foot.y) + e->arriveRadius,
+                         e->z - foot.z),
+              30.0f);
+    // The tank spot itself is out of that range: it is why the spot is not on it.
+    EXPECT_GT(Dist2d(kEbonrocTankSpot.x, kEbonrocTankSpot.y, foot), 30.0f);
+    // ~70s a lap at walk speed: wait about two, never forever.
+    EXPECT_GE(e->maxWaitMs, 120000u);
+    EXPECT_LE(e->maxWaitMs, 300000u);
+    // The spot is in trio B's lap: the stage it waits on is that pack's.
+    EXPECT_LT(Nearest(e->x, e->y, kTrioB), ELITE_REACH);
+    // Flamegor is fought at his spawn, not ambushed.
+    EXPECT_EQ(BossAmbushRegistry::Find(MAP_ID, NPC_FLAMEGOR_ENTRY), nullptr);
+}
+
+// Each trio row arms where the tank stands when it comes due (row 9's camp, Ebonroc's
+// tank spot) and stays armed at its stand spot and camp.
+TEST(DcBlackwingLairWyrmguardTest, TrioRowsArmWhereTheTankStands)
+{
+    ScriptedPullStage const& b = DtRow(ROW_TRIO_B);
+    ScriptedPullStage const& a = DtRow(ROW_TRIO_A);
+    for (ScriptedPullStage const* s : {&b, &a})
+    {
+        EXPECT_TRUE(ScriptedPullRegistry::InArmRange(*s, s->campX, s->campY, s->campZ)) << s->name;
+        EXPECT_TRUE(ScriptedPullRegistry::InArmRange(*s, s->standX, s->standY, s->standZ)) << s->name;
+    }
+    ScriptedPullStage const& east = DtRow(9);
+    EXPECT_TRUE(ScriptedPullRegistry::InArmRange(b, east.campX, east.campY, east.campZ));
+    BossAmbush const* e = BossAmbushRegistry::Find(MAP_ID, NPC_EBONROC_ENTRY);
+    ASSERT_NE(e, nullptr);
+    EXPECT_TRUE(ScriptedPullRegistry::InArmRange(b, e->x, e->y, e->z));
+    EXPECT_TRUE(ScriptedPullRegistry::InArmRange(a, e->x, e->y, e->z));
+    EXPECT_TRUE(ScriptedPullRegistry::InArmRange(a, kEbonrocTankSpot.x, kEbonrocTankSpot.y,
+                                                 kEbonrocTankSpot.z));
+    // Never from the landing, where rows 7-9 have not run yet.
+    EXPECT_FALSE(ScriptedPullRegistry::InArmRange(b, kFiremawPath[3].x, kFiremawPath[3].y,
+                                                  kFiremawPath[3].z));
 }
 
 TEST(DungeonEventBlackwingLairTest, TransitStopsBeforeBroodlordAndDoesNotRearmOnApproach)

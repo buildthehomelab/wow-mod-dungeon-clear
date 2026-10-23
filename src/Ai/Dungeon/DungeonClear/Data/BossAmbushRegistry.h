@@ -36,6 +36,13 @@ struct BossAmbush
     float  x{0.0f}, y{0.0f}, z{0.0f};  // the spot, on his patrol path
     float  arriveRadius{0.0f};          // 2D yd within which the party holds there
     uint32 maxWaitMs{0};                // longest hold at the spot before chasing
+
+    // A ScriptedPullRegistry stage (its `order` on this map) whose pack must be dead
+    // before the ambush is in force, -1 for none. While that pack is up the boss is
+    // approached the ordinary way, which in practice means the stage runs first:
+    // Ebonroc's spot is 6-17yd from the Wyrmguards he patrols past, and walking the
+    // raid onto it with them alive is the pull the stage exists to avoid.
+    int32  afterStage{-1};
 };
 
 class BossAmbushRegistry

@@ -47,6 +47,33 @@ namespace
             // maxWaitMs 300000: one and a half laps.
             { 469, 11983, -7534.6f, -1036.2f, 448.9f, /*arriveRadius*/ 8.0f,
               /*maxWaitMs*/ 300000 },
+
+            // Blackwing Lair (469): Ebonroc. He walks path 857800 out and back,
+            // 86yd each way: from his spawn on the 477 tier (-7358.2, -994.3) down
+            // his ramp to its foot on the 465 tier (node 7, -7414.4, -963.3,
+            // 466.5), ~35s a leg. Chased (10/22), the tank caught him at the
+            // Wyrmguards he walks past and the raid's dynamic camp was still inside
+            // his patrol: he walked into the Wyrmguard fight 23s in.
+            //
+            // The spot is on the 465 floor next to the raid's tank spot for him
+            // (RaidClear.BlackwingLair.Ebonroc.TankSpot, -7384.6, -954.8, where
+            // the holder walks him), 8.7yd from it toward the foot of his ramp.
+            // Not on the tank spot itself: that is 31.0yd from node 7, and the
+            // engage hands off at the 30yd BossEngageRangeCap, so he would turn at
+            // the foot of the ramp without ever coming into range. From here node
+            // 7 is 22.3yd, the nearest point of his path; inside the 6yd arrive
+            // circle it is 28.3 at worst. Node 3, up on the 477 tier, is 25.5yd
+            // off in plan but 12yd above, a floor the at-boss check measures by
+            // path (~80yd round by his ramp), so he is taken at the foot of the
+            // ramp, on this floor.
+            //
+            // The spot is 1.8-8.4yd from the Wyrmguard spawns he passes (formation
+            // 84634) and 11.4yd from Krixix: afterStage 10 keeps the raid off it
+            // until that row has dragged them to the east 465 camp and killed them.
+            //
+            // maxWaitMs 150000: two laps.
+            { 469, 14601, -7393.0f, -957.0f, 465.1f, /*arriveRadius*/ 6.0f,
+              /*maxWaitMs*/ 150000, /*afterStage*/ 10 },
         };
         return rows;
     }
