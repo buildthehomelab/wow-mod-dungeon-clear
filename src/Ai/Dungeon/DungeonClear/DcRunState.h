@@ -14,6 +14,7 @@
 #include <vector>
 
 #include "ObjectGuid.h"
+#include "Position.h"
 #include "Timer.h"
 
 #include "Ai/Dungeon/DungeonClear/Util/DcChessConductor.h"
@@ -306,6 +307,24 @@ struct DcRunState
     // LATCHES (the verdict keeps reporting the hold so the leg keeps walking), so
     // this is what makes the WARN fire once per release instead of once per tick.
     bool   transitHoldTimedOut = false;
+
+    // === PARTY HOLD state (leader-owned) ========================================
+    // A BossPartyHoldRegistry row in force: the raid waits on the row's spot while
+    // the tank fetches the boss alone (DungeonClearAdvanceAction::TryPartyHold).
+    //
+    // Read cross-bot by every follower's party-hold rung through
+    // DcLeaderSignal::GetPartyHoldSpot, which is why this is a LATCH plus a live
+    // check and not a per-tick stamp like the transit cursor: the leader's Advance
+    // rung does not get a tick while a higher rung holds the tank (the at-boss
+    // engage's muster, the engage walk), and a stamp that lapsed there would
+    // release the raid onto the boss just as the tank is lining him up. The
+    // reader validates the latch against the world instead — the boss it names
+    // must be loaded, alive and out of combat, and so must the leader — so the
+    // release is the pull itself, within one tick, by every exit the fetch has.
+    bool       partyHoldArmed = false;  // published: followers hold on the spot
+    ObjectGuid partyHoldBoss;           // the boss being fetched
+    Position   partyHoldSpot;           // where the followers wait
+    uint32     partyHoldArmedMs = 0;    // getMSTime() it was armed (telemetry)
 
     // The Violet Hold keeper / Black Morass rift a bot has COMMITTED to, held
     // across the portal-death boundary so a tank two yards from a corpse is not
@@ -726,6 +745,16 @@ struct DcRunState
         ocProgressMs = 0;
         ocStallReissued = false;
         ClearThrottle(DcThrottle::OcMoveIssue);
+    }
+
+    // Drop the party hold: the fetch is over (the boss is in combat, dead, or no
+    // longer next) or the leader stopped driving it.
+    void ClearPartyHold()
+    {
+        partyHoldArmed = false;
+        partyHoldBoss.Clear();
+        partyHoldSpot = Position();
+        partyHoldArmedMs = 0;
     }
 
     void ClearTransit()

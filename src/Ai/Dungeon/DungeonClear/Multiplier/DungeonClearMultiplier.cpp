@@ -332,6 +332,12 @@ float DungeonClearMultiplier::GetValue(Action* action)
         bool passive = false;
         if (DcLeaderSignal::GetLeaderCampHold(bot, camp, passive))
             return 0.0f;
+        // A PARTY HOLD (BossPartyHoldRegistry) parks the follower the same way and
+        // its rung yields the same tick once the bot is on its slot, so the same
+        // three movers would walk it off the spot after the departing tank.
+        Position hold;
+        if (DcLeaderSignal::GetPartyHoldSpot(bot, hold))
+            return 0.0f;
     }
 
     // Stock group-target pickers while the camp hold is PASSIVE (the tank is

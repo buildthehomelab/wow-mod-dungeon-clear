@@ -238,6 +238,15 @@ struct DcApproachState
     ObjectGuid ambushGuid;
     uint32     ambushSinceMs = 0;
     bool       ambushGaveUp  = false;
+    // Party-hold boss (BossPartyHoldRegistry, DungeonClearAdvanceAction::
+    // TryPartyHold): the boss the latch below belongs to, when the leader first
+    // stood on the spot waiting for the followers (0 = not yet), and whether the
+    // raid has gathered there (then the spot stays published and the tank goes
+    // on alone; a straggler is recalled by its own rung, never by the tank
+    // walking back). A new boss GUID starts over.
+    ObjectGuid partyHoldGuid;
+    uint32     partyHoldGatherSinceMs = 0;
+    bool       partyHoldGathered = false;
 
     // Mid-glide hazard probe (Advance). While a continuous escort spline is in
     // flight the hop ladder short-circuits (the ride outranks everything), so a
@@ -427,6 +436,9 @@ struct DcApproachState
         ambushGuid.Clear();
         ambushSinceMs       = 0;
         ambushGaveUp        = false;
+        partyHoldGuid.Clear();
+        partyHoldGatherSinceMs = 0;
+        partyHoldGathered   = false;
         glideHazardProbeMs  = 0;
         glideHazardIgnore.Clear();
         doorStallGuid.Clear();

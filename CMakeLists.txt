@@ -1038,3 +1038,15 @@ AC_ADD_CONFIG_FILE("${CMAKE_CURRENT_LIST_DIR}/conf/mod_dungeon_clear.conf.dist")
 #    walks the raid to a hand-authored spot on the loop and waits there for him
 #    — DungeonClearAdvanceAction::TryAmbushHold. One row: Molten Core's Baron
 #    Geddon, whose ~554yd loop takes ~35s and passes 8.8yd from Shazzrah.)
+
+# New files added: Data/BossPartyHoldRegistry.{h,cpp}, Util/DcPartyHoldDecision.h,
+#                  Action/DcPartyHoldActions.cpp, t/TestPartyHoldDecision.cpp
+#   (Party-hold bosses: the raid waits on a hand-authored spot while the tank
+#    fetches the boss alone — Advance walks the raid to the spot, gathers it,
+#    publishes the spot in DcRunState (partyHold*) and goes on; every follower's
+#    "dungeon clear party hold" rung parks it there until the boss enters
+#    combat, which DcLeaderSignal::GetPartyHoldSpot reads off the world. The
+#    spread gate and the raid muster measure the raid against the spot. Two
+#    rows: Blackwing Lair's Ebonroc (trio B's stand spot) and Flamegor (the
+#    ledge at the foot of Ebonroc's ramp), both walked to one tank spot by the
+#    raid strategy; the pure kernel is gtested, the rows against the map data.)

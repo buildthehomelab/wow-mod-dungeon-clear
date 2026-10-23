@@ -1059,6 +1059,15 @@ bool DungeonClearFollowTankTrigger::IsActive()
         if (DcLeaderSignal::GetLeaderCampHold(bot, camp, passive))
             return false;
     }
+    // Same for a PARTY HOLD (BossPartyHoldRegistry): the tank is walking away to
+    // fetch the boss on purpose, and the raid's place is the published spot, not
+    // six yards behind the tank. The party-hold rung owns the walk there and tears
+    // the follow generator down itself.
+    {
+        Position hold;
+        if (DcLeaderSignal::GetPartyHoldSpot(bot, hold))
+            return false;
+    }
 
     // Redirect every non-leader bot to the leader — non-tanks AND non-leader
     // (off-)tanks in a raid. The leader resolves "party tank" to itself, so the

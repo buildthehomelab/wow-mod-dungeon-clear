@@ -36,6 +36,9 @@
 #include "SharedDefines.h"
 #include "Ai/Dungeon/DungeonClear/DcApproachState.h"
 #include "Ai/Dungeon/DungeonClear/Data/BossAmbushRegistry.h"
+#include "Ai/Dungeon/DungeonClear/Data/BossPartyHoldRegistry.h"
+#include "Ai/Dungeon/DungeonClear/DcPullContext.h"
+#include "Ai/Dungeon/DungeonClear/Util/DcPartyHoldDecision.h"
 #include "Ai/Dungeon/DungeonClear/Data/BossPullbackRegistry.h"
 #include "Ai/Dungeon/DungeonClear/Data/DcEventDoorRegistry.h"
 #include "Ai/Dungeon/DungeonClear/Data/DungeonBossInfo.h"
@@ -965,11 +968,16 @@ DungeonClearAdvanceAction::Step DungeonClearAdvanceAction::TryPatrollingBossHold
     // is running away from the raid.
     bool onTheWay = false;
     bool onTheWayClosing = false;
-    if (st.ambush && DcSettings::GetBool(bot, "PullPatrolGuard"))
+    // The walk to a party-hold spot (TryPartyHold) is the same shape: the raid
+    // must not file past him on the way to the place it will wait for him.
+    if ((st.ambush || st.partyHoldWalk) && DcSettings::GetBool(bot, "PullPatrolGuard"))
     {
+        float const legX = st.partyHoldWalk ? st.partyHold->x : st.ambush->x;
+        float const legY = st.partyHoldWalk ? st.partyHold->y : st.ambush->y;
+        float const legZ = st.partyHoldWalk ? st.partyHold->z : st.ambush->z;
         std::vector<G3D::Vector3> const leg{
             {bot->GetPositionX(), bot->GetPositionY(), bot->GetPositionZ()},
-            {st.ambush->x, st.ambush->y, st.ambush->z}};
+            {legX, legY, legZ}};
         float const pad = DcSettings::GetFloat(bot, "PullEnRouteMargin") +
                           DcSettings::GetFloat(bot, "PullPatrolBuffer");
         onTheWay = DungeonClearMath::DistToClosedRoute2D(boss->GetPositionX(),
@@ -1103,6 +1111,188 @@ DungeonClearAdvanceAction::Step DungeonClearAdvanceAction::TryAmbushHold(Advance
     DcMovement::StopBot(bot, DcMovement::Stop::Hold);
     ClearStall(context);
     SetPhase(context, "ambush: waiting for " + st.next->name + " to come round");
+    return Step::ReturnTrue;
+}
+
+// The party-hold row for `next` when it applies this tick — the raid waits on
+// the row's spot while the tank fetches the boss (BossPartyHoldRegistry). In
+// force while the row's boss is loaded, alive and idle, the tank is out of
+// combat, no pull or scripted stage owns the party, the row's prerequisite pack
+// is dead and nothing hostile stands within the row's clear radius of the spot.
+// Any of those failing takes the published hold DOWN with it (DcRunState::
+// ClearPartyHold): the followers' signal validates the boss and the leader on
+// read anyway, so this is the leader-side half of the same release — and the
+// only one for the prerequisites, which a follower cannot see.
+//
+// A new boss GUID starts the gather over (a despawn and respawn, a `dc go`), and
+// so does any drop of the hold (see standDown).
+BossPartyHold const* DungeonClearAdvanceAction::PartyHoldInForce(DcApproachState& appr,
+                                                                 DungeonBossInfo const& next,
+                                                                 Creature* boss)
+{
+    if (!boss || next.kind != DungeonAnchorKind::Boss)
+        return nullptr;
+    BossPartyHold const* const row = BossPartyHoldRegistry::Find(bot->GetMapId(), next.entry);
+    if (!row)
+        return nullptr;
+
+    DcRunState& run = DcRun::Of(context);
+    auto const standDown = [&](char const* why) -> BossPartyHold const*
+    {
+        if (run.partyHoldArmed)
+        {
+            LOG_INFO("playerbots.dungeonclear",
+                     "[DC:{}] party hold: released for {} ({}) after {}s",
+                     bot->GetName(), next.name, why,
+                     GetMSTimeDiffToNow(run.partyHoldArmedMs) / 1000);
+            run.ClearPartyHold();
+        }
+        // Whatever dropped the hold, the next one gathers again: a boss who evades
+        // keeps his GUID through a wipe, and a tank that picked up a stray mid-fetch
+        // has had the raid trailing it (follow-tank re-arms) and must collect it.
+        appr.partyHoldGatherSinceMs = 0;
+        appr.partyHoldGathered = false;
+        return nullptr;
+    };
+
+    if (!DcSettings::GetBool(bot, "BossPartyHold"))
+        return standDown("setting off");
+    if (appr.partyHoldGuid != boss->GetGUID())
+    {
+        appr.partyHoldGuid = boss->GetGUID();
+        appr.partyHoldGatherSinceMs = 0;
+        appr.partyHoldGathered = false;
+        // A hold still published for the previous boss would be read by the
+        // followers against that boss's GUID (dead: never held) and by the
+        // leader's gates against its spot.
+        if (run.partyHoldArmed)
+            run.ClearPartyHold();
+    }
+    if (!boss->IsAlive() || boss->IsInCombat() || bot->IsInCombat())
+        return standDown(boss->IsInCombat() ? "he is in combat" : "the tank is in combat");
+    // A pull maneuver or a scripted stage owns the party: its camp is where the
+    // raid waits, and this hold would fight it for the followers.
+    DcPullContext const& pull = context->GetValue<DcPullContext&>(DcKey::PullContext)->Get();
+    if (pull.phase != DcPullPhase::Idle || pull.scriptedStage >= 0)
+        return standDown("a pull owns the party");
+    // The row's prerequisite pack still up: the spot is in its lap.
+    if (row->afterStage >= 0)
+        if (ScriptedPullStage const* stage =
+                ScriptedPullRegistry::Find(bot->GetMapId(), row->afterStage))
+            if (ScriptedPullRegistry::NearestPackMember(bot, context, *stage))
+                return standDown("its stage's pack is still up");
+    // ...and whatever else is standing there on the day.
+    if (row->clearRadius > 0.0f)
+        if (Unit const* const standing = DcTargeting::NearestHostileNearPoint(
+                bot, context, row->x, row->y, row->z, row->clearRadius, /*zBand*/ 10.0f))
+        {
+            DC_PULL_DEBUG("[DC:{}] party hold: not in force for {} — {} stands {:.1f}yd "
+                          "from the spot", bot->GetName(), next.name,
+                          standing->GetGUID().ToString(),
+                          standing->GetExactDist2d(row->x, row->y));
+            return standDown("something hostile stands at the spot");
+        }
+    return row;
+}
+
+// The party hold itself (BossPartyHoldRegistry; the kernel is
+// DcPartyHoldDecision). Three states, all out of combat, all before the pull:
+//
+//   Walk    — the raid is on its way to the spot behind the tank. Execute has
+//             already aimed the approach at the spot (partyHoldWalk); nothing to
+//             do here but let the ladder walk.
+//   Gather  — the tank is on the spot. Publish it (the followers' rung now walks
+//             them to their slots instead of to the tank), park the tank and own
+//             the tick until the raid's quorum (RaidReadyQuorumPct) is there or
+//             the row's gather budget runs out.
+//   Hold    — gathered: latched on the approach state, the spot stays published,
+//             and the tick falls through to the ordinary approach — the ambush
+//             hold if he has a row, the long-path at him otherwise. The leader's
+//             leaving is what the whole thing is for.
+//
+// Release is not decided here: PartyHoldInForce takes the hold down the tick the
+// boss or the tank enters combat, and the followers' signal reads the same facts
+// off the world (DcLeaderSignal::GetPartyHoldSpotFrom), so the pull itself is the
+// release whether or not this rung gets the tick that follows it.
+DungeonClearAdvanceAction::Step DungeonClearAdvanceAction::TryPartyHold(AdvanceState const& st)
+{
+    BossPartyHold const* const row = st.partyHold;
+    if (!row || !st.partyHoldBoss)
+        return Step::Continue;
+
+    DcApproachState& appr = *st.appr;
+    DcRunState& run = DcRun::Of(context);
+    uint32 const now = getMSTime();
+
+    // Who is there. Bots only — a human stands where they mean to stand — and
+    // everyone alive on the map counts toward the quorum, as the raid readiness
+    // walk counts them.
+    constexpr float kGatherSlack = 12.0f;  // a slot off the spot, plus a step
+    uint32 living = 0;
+    uint32 atSpot = 0;
+    if (Group* const group = bot->GetGroup())
+    {
+        for (GroupReference* ref = group->GetFirstMember(); ref; ref = ref->next())
+        {
+            Player* const member = ref->GetSource();
+            if (!member || member == bot || !member->IsAlive() ||
+                member->GetMapId() != bot->GetMapId() || !GET_PLAYERBOT_AI(member))
+                continue;
+            ++living;
+            if (member->GetExactDist2d(row->x, row->y) <= row->arriveRadius + kGatherSlack &&
+                std::fabs(member->GetPositionZ() - row->z) <= DC_Z_LEVEL_TOLERANCE)
+                ++atSpot;
+        }
+    }
+
+    DcPartyHoldDecision::Inputs in;
+    in.inForce = true;
+    in.gathered = appr.partyHoldGathered;
+    in.leaderAtSpot = bot->GetExactDist2d(row->x, row->y) <= row->arriveRadius &&
+                      std::fabs(bot->GetPositionZ() - row->z) <= DC_Z_LEVEL_TOLERANCE;
+    in.living = living;
+    in.atSpot = atSpot;
+    in.quorumPct = DcSettings::GetUInt(bot, "RaidReadyQuorumPct");
+    in.nowMs = now;
+    in.gatherSinceMs = appr.partyHoldGatherSinceMs;
+    in.gatherBudgetMs = row->gatherBudgetMs;
+    DcPartyHoldDecision::Verdict const v = DcPartyHoldDecision::Decide(in);
+
+    if (v.startClock)
+    {
+        appr.partyHoldGatherSinceMs = now;
+        LOG_INFO("playerbots.dungeonclear",
+                 "[DC:{}] party hold: on the wait spot for {} ({:.1f},{:.1f},{:.1f}) -> "
+                 "gathering the raid here ({}/{} in, up to {}s), then fetching him alone",
+                 bot->GetName(), st.next->name, row->x, row->y, row->z, atSpot, living,
+                 row->gatherBudgetMs / 1000);
+    }
+    if (v.publish &&
+        (!run.partyHoldArmed || run.partyHoldBoss != st.partyHoldBoss->GetGUID()))
+    {
+        run.partyHoldArmed = true;
+        run.partyHoldBoss = st.partyHoldBoss->GetGUID();
+        run.partyHoldSpot.Relocate(row->x, row->y, row->z);
+        run.partyHoldArmedMs = now;
+    }
+    if (v.setGathered)
+    {
+        appr.partyHoldGathered = true;
+        LOG_INFO("playerbots.dungeonclear",
+                 "[DC:{}] party hold: raid gathered for {} ({}/{} in{}) -> the raid waits "
+                 "here, the tank goes on to him",
+                 bot->GetName(), st.next->name, atSpot, living,
+                 v.budgetRanOut ? ", gather budget ran out" : "");
+    }
+
+    if (!v.parkLeader)
+        return Step::Continue;
+
+    DcMovement::StopBot(bot, DcMovement::Stop::Hold);
+    ClearStall(context);
+    SetPhase(context, "party hold: gathering the raid at the wait spot for " +
+                          st.next->name + " (" + std::to_string(atSpot) + "/" +
+                          std::to_string(living) + ")");
     return Step::ReturnTrue;
 }
 
@@ -2420,12 +2610,32 @@ bool DungeonClearAdvanceAction::Execute(Event /*event*/)
     // instead, with the live handle suppressed so pursuit never arms; the at-boss
     // engage (atBoss below, which reads the live boss) still fires when his loop
     // brings him in. See TryAmbushHold.
+    // EXCEPTION — a PARTY-HOLD boss (BossPartyHoldRegistry): the raid waits on a
+    // hand-authored spot while the tank fetches him alone. Until the raid has
+    // gathered there, the walk target is the SPOT (the followers trail the tank to
+    // it as usual, the live handle withheld so pursuit never arms); once gathered
+    // the tank goes on to the boss by the ordinary route — the ambush spot if he
+    // has one, his live position otherwise — with the spot published behind it.
+    // See TryPartyHold / PartyHoldInForce.
+    BossPartyHold const* const partyHold =
+        loadedBoss ? PartyHoldInForce(appr, *next, loadedBoss) : nullptr;
+    // No row in force this tick — `next` has no row (the boss after the fetched
+    // one), is not a creature, or is not loaded: the latch from the last fetch
+    // must not outlive it. Advance never ticks through the fight, so this is the
+    // first tick after the kill that can take it down, and the leader-side
+    // readers (the spread gate, the muster) anchor on it until it is.
+    if (!partyHold && DcRun::Of(context).partyHoldArmed)
+        DcRun::Of(context).ClearPartyHold();
+    bool const partyHoldWalk = partyHold && !appr.partyHoldGathered;
     BossAmbush const* const ambush =
-        loadedBoss ? AmbushInForce(appr, *next, loadedBoss) : nullptr;
-    Creature* const liveBoss = ambush ? nullptr : loadedBoss;
-    float const bossX = ambush ? ambush->x : liveBoss ? liveBoss->GetPositionX() : next->x;
-    float const bossY = ambush ? ambush->y : liveBoss ? liveBoss->GetPositionY() : next->y;
-    float const bossZ = ambush ? ambush->z : liveBoss ? liveBoss->GetPositionZ() : next->z;
+        (loadedBoss && !partyHoldWalk) ? AmbushInForce(appr, *next, loadedBoss) : nullptr;
+    Creature* const liveBoss = (ambush || partyHoldWalk) ? nullptr : loadedBoss;
+    float const bossX = partyHoldWalk ? partyHold->x
+                        : ambush ? ambush->x : liveBoss ? liveBoss->GetPositionX() : next->x;
+    float const bossY = partyHoldWalk ? partyHold->y
+                        : ambush ? ambush->y : liveBoss ? liveBoss->GetPositionY() : next->y;
+    float const bossZ = partyHoldWalk ? partyHold->z
+                        : ambush ? ambush->z : liveBoss ? liveBoss->GetPositionZ() : next->z;
     float const engageDist = bot->GetDistance(bossX, bossY, bossZ);
 
     // Hand-off distance: the boss's real aggro bubble (+reaches/margin) when it
@@ -2464,7 +2674,10 @@ bool DungeonClearAdvanceAction::Execute(Event /*event*/)
     st.atBoss = atBoss;
     st.appr = &appr;
     st.ambush = ambush;
-    st.ambushBoss = ambush ? loadedBoss : nullptr;
+    st.ambushBoss = (ambush || partyHoldWalk) ? loadedBoss : nullptr;
+    st.partyHold = partyHold;
+    st.partyHoldBoss = partyHold ? loadedBoss : nullptr;
+    st.partyHoldWalk = partyHoldWalk;
 
     // An active submerged swim leg owns the tick outright: it drives a raw 3D
     // escort spline through a tunnel the navmesh can't model (the floor under
@@ -2501,6 +2714,8 @@ bool DungeonClearAdvanceAction::Execute(Event /*event*/)
     if (Step s = TryBetweenPullsRest(st); s != Step::Continue)
         return s == Step::ReturnTrue;
     if (Step s = TryBossNotPresentStall(st); s != Step::Continue)
+        return s == Step::ReturnTrue;
+    if (Step s = TryPartyHold(st); s != Step::Continue)
         return s == Step::ReturnTrue;
     if (Step s = TryAmbushHold(st); s != Step::Continue)
         return s == Step::ReturnTrue;

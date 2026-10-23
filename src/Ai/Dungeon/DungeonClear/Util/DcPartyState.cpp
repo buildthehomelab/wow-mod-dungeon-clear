@@ -296,6 +296,24 @@ DcPartyState::SpreadGate DcPartyState::GetSpreadGate(Player* bot, AiObjectContex
         gate.maxSpread = 100000.0f;
         return gate;
     }
+    // PARTY HOLD (BossPartyHoldRegistry): the raid has been told to wait on a spot
+    // while the tank fetches the boss, so "caught up" is measured against the
+    // SPOT, with no tank-gap backstop at all — the tank being 70yd away up a ramp
+    // is the maneuver, not a straggling party. Without this the engage waits on a
+    // raid that has been forbidden to come. Read off the leader's own run state:
+    // this gate is the leader's.
+    // Validated live (the boss and the tank out of combat), through the same read
+    // the followers make, so a latch that outlived its fetch cannot anchor the
+    // gate on the last boss's spot.
+    {
+        Position hold;
+        if (DcLeaderSignal::GetPartyHoldSpotFrom(bot, hold))
+        {
+            gate.anchor = &DcRun::Of(context).partyHoldSpot;
+            gate.maxTankGap = 0.0f;
+            return gate;
+        }
+    }
     // SEALED ENCOUNTER, final approach: a tighter, TANK-anchored clump that
     // overrides both the setting and the camp anchor below.
     //

@@ -746,6 +746,16 @@ bool DcLeaderSignal::GetLeaderCampHold(Player* bot, Position& campOut, bool& pas
     // somewhere it has been ordered not to go.
     if (!IsPullPhaseHolding(static_cast<uint32>(pull.phase)) && pull.scriptedStage < 0)
     {
+        // PARTY HOLD (BossPartyHoldRegistry), between maneuvers: the camp survives
+        // between pulls by design and the Dynamic governor keeps the pull-mode bool
+        // up across a raid, so without this the camp would pin the followers (28 >
+        // 27.5) while the leader is trying to gather them on the hold spot — the
+        // quorum never met, the tank leaving on the budget with the raid leapfrogging
+        // after it. The party hold owns the followers while it is live.
+        Position hold;
+        if (GetPartyHoldSpotFrom(leader, hold))
+            return false;
+
         if (std::optional<DungeonBossInfo> const next =
                 ctx->GetValue<std::optional<DungeonBossInfo>>(DcKey::NextDungeonBoss)->Get())
         {
@@ -1706,4 +1716,44 @@ void DcLeaderSignal::ReportChessRefusal(Player* bot, ObjectGuid piece)
         if (a.bot == me && a.piece == piece.GetRawValue())
             return;
     ch->refused.push_back({ me, piece.GetRawValue() });
+}
+
+bool DcLeaderSignal::GetPartyHoldSpot(Player* bot, Position& out)
+{
+    // Cheapest discriminator first, as GetTransitAnchor: every follower in every
+    // dungeon asks this through follow-tank, and only a raid can answer yes.
+    if (!bot)
+        return false;
+    Map const* const map = bot->GetMap();
+    if (!map || !map->IsRaid())
+        return false;
+    Player* const leader = FindLeaderTank(bot);
+    if (!leader || leader == bot)
+        return false;
+    return GetPartyHoldSpotFrom(leader, out);
+}
+
+bool DcLeaderSignal::GetPartyHoldSpotFrom(Player* leader, Position& out)
+{
+    if (!leader)
+        return false;
+    PlayerbotAI* leaderAI = GET_PLAYERBOT_AI(leader);
+    if (!leaderAI)
+        return false;
+
+    DcRunState const& st = DcRun::Of(leaderAI->GetAiObjectContext());
+    if (!st.enabled || st.paused || !st.partyHoldArmed || st.partyHoldBoss.IsEmpty())
+        return false;
+
+    // The latch is validated against the world on every read: the fetch is over
+    // the moment the tank has him (boss in combat), the leader is fighting
+    // anything (the pull landed, or something else did), or either is gone.
+    if (!leader->IsAlive() || leader->IsInCombat())
+        return false;
+    Creature const* const boss = ObjectAccessor::GetCreature(*leader, st.partyHoldBoss);
+    if (!boss || !boss->IsAlive() || boss->IsInCombat())
+        return false;
+
+    out = st.partyHoldSpot;
+    return true;
 }
