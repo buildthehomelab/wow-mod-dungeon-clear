@@ -617,6 +617,57 @@ namespace
     float constexpr BWL_TIER_ARM_R  = 100.0f;
     float constexpr BWL_HALL_ZBAND  = 4.0f;
 
+    // BLACKWING LAIR — THE TWO WYRMGUARD TRIOS, Ebonroc and Flamegor.
+    //
+    // Each drake has a trio of Death Talon Wyrmguards (formations 84634 and 84648,
+    // groupAI 43) within his reach, and the 10/22 run fought both drakes with their
+    // trio: 19 of the raid's 35 deaths.
+    //
+    //   * EBONROC walks path 857800 out and back, 86yd each way, from his spawn on
+    //     the 477 tier (-7358.2, -994.3) down his ramp to its foot on the 465 tier
+    //     (node 7, -7414.4, -963.3, 466.5). TRIO B stands 14.2-27.3yd from that
+    //     path, with Master Elemental Shaper Krixix (14401) 6yd from the nearest of
+    //     them and 16.4yd from the path. The raid's tank spot for him
+    //     (RaidClear.BlackwingLair.Ebonroc.TankSpot, -7384.6, -954.8) is 5.9-17.0yd
+    //     from the trio. Live: the dynamic pull dragged trio B ~25yd, its camp was
+    //     still inside his patrol once 40 bots spread round it, and he walked into
+    //     the fight 23s after the tag; 9 deaths.
+    //   * FLAMEGOR (-7407.9, -1031.0, 477.4) wanders 10yd round his spawn and has
+    //     no path. TRIO A stands 36.8-42.8yd from his spawn, beyond him as seen
+    //     from the top of Ebonroc's ramp (node 4). Live: he was taunted where he stood and the ranged
+    //     spread round him woke trio A 5s in; 10 deaths.
+    //
+    // ORDER 10, TRIO B (Ebonroc next): tagged at range and dragged back up the
+    // cleared 465 floor to the east 465 pack's camp (-7419.3, -895.4), the spot the
+    // raid fought row 9 on. That camp is 68.1yd from the nearest point of Ebonroc's
+    // path (node 7), so a follower on the 12yd camp leash is still 56yd from it,
+    // twice his reach (the middle pack's camp, the other fought ground on the way
+    // back, is 54.8). Everything else up there is dead by then (rows 7-9). The stand spot (-7398.0, -927.0) is 4yd off an east-pack
+    // Technician's spawn, 26.1yd from the nearest Wyrmguard (84628) and 39.8yd from
+    // node 7; the drag back from it is 38yd for the tank and 64-75yd for the
+    // pack, which War Stomps 8s in, about when it reaches the camp. The tag
+    // waits for Ebonroc alone (patrolGuardEntries): he comes within 14yd of the
+    // trio at the foot of his ramp. Then Ebonroc is ambushed beside the tank spot
+    // (BossAmbushRegistry, afterStage 10).
+    //
+    // ORDER 11, TRIO A (Flamegor next): tagged at range from the 477 tier on the
+    // ramp side of the trio and dragged to the foot of Ebonroc's ramp, node 7 of his path: walked
+    // ground, 68.0yd from Flamegor's spawn, 58yd from the edge of his wander. The
+    // stand spot (-7445.0, -1008.0, 477.0) is 28.3yd from the nearest Wyrmguard
+    // (84650) and 43.6yd from Flamegor's spawn, 33.6 from the edge of his wander;
+    // the line from it to the top of the ramp (node 4) passes 36.6yd from his spawn.
+    // No patrolGuard: a 10yd wander inside his own reach never reads as a patrol
+    // (DcEngageGeometry::IsPatrolMoverNow), so there is nothing for it to wait on.
+    // Then Flamegor is fought at his spawn, with nothing left in reach of it.
+    //
+    // Measured against acore_world (creature, creature_formations, waypoint_data).
+    // Neither stand spot nor the trio A camp has been checked against the navmesh
+    // or in game; they are the first thing to look at on a run.
+    uint32 constexpr BWL_FLAMEGOR      = 11981;
+    uint32 constexpr BWL_KRIXIX        = 14401;
+    float constexpr BWL_TRIO_ZBAND     = 4.0f;
+    float constexpr BWL_TRIO_ARM_R     = 80.0f;
+
     std::vector<ScriptedPullStage> const& Table()
     {
         static std::vector<ScriptedPullStage> const kStages = []
@@ -872,6 +923,42 @@ namespace
                     s.patrolGuardEntries = {BWL_FIREMAW};
                 t.push_back(s);
             }
+
+            // The Wyrmguard trios (see BLACKWING LAIR — THE TWO WYRMGUARD TRIOS
+            // above). Ranged tags from a stand spot, dragged out to a far camp; each
+            // arms off its own camp, which covers the ground the tank stands on
+            // between the row before and the drake after.
+            ScriptedPullStage trioB;
+            trioB.mapId      = BWL_MAP;
+            trioB.bossEntry  = BWL_EBONROC;
+            trioB.order      = 10;
+            trioB.name       = "Blackwing Lair — Ebonroc's Wyrmguards";
+            trioB.campX      = -7419.30f; trioB.campY  = -895.40f;  trioB.campZ  = 465.10f;
+            trioB.standX     = -7398.00f; trioB.standY = -927.00f;  trioB.standZ = 465.10f;
+            trioB.packX      = -7395.80f; trioB.packY  = -959.00f;  trioB.packZ  = 465.10f;
+            trioB.packRadius = 13.0f;
+            trioB.packZBand  = BWL_TRIO_ZBAND;
+            trioB.armX       = trioB.campX; trioB.armY = trioB.campY; trioB.armZ = trioB.campZ;
+            trioB.armRadius  = BWL_TRIO_ARM_R;
+            trioB.entries    = {BWL_DT_WYRMGUARD, BWL_KRIXIX};
+            trioB.patrolGuard = true;
+            trioB.patrolGuardEntries = {BWL_EBONROC};
+            t.push_back(trioB);
+
+            ScriptedPullStage trioA;
+            trioA.mapId      = BWL_MAP;
+            trioA.bossEntry  = BWL_FLAMEGOR;
+            trioA.order      = 11;
+            trioA.name       = "Blackwing Lair — Flamegor's Wyrmguards";
+            trioA.campX      = -7414.41f; trioA.campY  = -963.30f;  trioA.campZ  = 466.54f;
+            trioA.standX     = -7445.00f; trioA.standY = -1008.00f; trioA.standZ = 477.00f;
+            trioA.packX      = -7443.70f; trioA.packY  = -1044.80f; trioA.packZ  = 477.00f;
+            trioA.packRadius = 14.0f;
+            trioA.packZBand  = BWL_TRIO_ZBAND;
+            trioA.armX       = trioA.campX; trioA.armY = trioA.campY; trioA.armZ = trioA.campZ;
+            trioA.armRadius  = BWL_TRIO_ARM_R;
+            trioA.entries    = {BWL_DT_WYRMGUARD};
+            t.push_back(trioA);
 
             std::stable_sort(t.begin(), t.end(),
                              [](ScriptedPullStage const& a, ScriptedPullStage const& b)

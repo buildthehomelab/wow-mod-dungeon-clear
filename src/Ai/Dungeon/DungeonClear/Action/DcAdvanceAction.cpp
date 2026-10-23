@@ -45,6 +45,7 @@
 #include "Ai/Dungeon/DungeonClear/Settings/DcSettings.h"
 #include "Ai/Dungeon/DungeonClear/Data/DungeonClearRouteRegistry.h"
 #include "Ai/Dungeon/DungeonClear/Data/DungeonEventRegistry.h"
+#include "Ai/Dungeon/DungeonClear/Data/ScriptedPullRegistry.h"
 #include "Ai/Dungeon/DungeonClear/Data/Events/DungeonEventTables.h"
 #include "Ai/Dungeon/DungeonClear/Overrides/ObjectiveHookRegistry.h"
 #include "Ai/Dungeon/DungeonClear/Util/DungeonEventExecutor.h"
@@ -1053,6 +1054,13 @@ BossAmbush const* DungeonClearAdvanceAction::AmbushInForce(DcApproachState& appr
         appr.ambushGaveUp = false;
         return nullptr;
     }
+    // The row's prerequisite pack (BossAmbush::afterStage) still up: the spot is
+    // next to it, so not yet. The clock does not start until the tank is on the spot.
+    if (row->afterStage >= 0)
+        if (ScriptedPullStage const* stage =
+                ScriptedPullRegistry::Find(bot->GetMapId(), row->afterStage))
+            if (ScriptedPullRegistry::NearestPackMember(bot, context, *stage))
+                return nullptr;
     return appr.ambushGaveUp ? nullptr : row;
 }
 
