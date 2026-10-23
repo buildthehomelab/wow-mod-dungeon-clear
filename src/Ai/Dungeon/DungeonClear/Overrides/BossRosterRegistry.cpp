@@ -41,6 +41,7 @@ namespace
             RegisterZulFarrakRoster(t);
             RegisterBlackrockDepthsRoster(t);
             RegisterBlackwingLairRoster(t);
+            RegisterGnomereganRoster(t);
             RegisterDeadminesRoster(t);
             RegisterWailingCavernsRoster(t);
             RegisterStratholmeRoster(t);

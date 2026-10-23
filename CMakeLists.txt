@@ -1050,3 +1050,4 @@ AC_ADD_CONFIG_FILE("${CMAKE_CURRENT_LIST_DIR}/conf/mod_dungeon_clear.conf.dist")
 #    rows: Blackwing Lair's Ebonroc (trio B's stand spot) and Flamegor (the
 #    ledge at the foot of Ebonroc's ramp), both walked to one tank spot by the
 #    raid strategy; the pure kernel is gtested, the rows against the map data.)
+# New source: Data/Events/GnomereganEvents.cpp (Emi/Grubbis escort objective).
