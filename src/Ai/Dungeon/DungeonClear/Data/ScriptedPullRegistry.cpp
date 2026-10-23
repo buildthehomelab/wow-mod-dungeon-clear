@@ -523,18 +523,35 @@ namespace
     //   patrol row: the tank walks the few yards to the aggro edge and the pack comes
     //   to the camp.
     //
-    //   WEST ROW — camp on the east row's camp (-7535.0, -952.0), empty by then and
-    //   37.9yd from the west pack. Stand on anchor 13 (certified on-mesh, sight-line
-    //   down the route leg into the pack), 21.9yd from Flamescale 84529, so the tag
-    //   is a ranged opener on the nearest member and a ~16yd drag back east.
+    //   WEST ROW — camp and stand (-7546.0, -943.75), 3.1yd off the route leg from
+    //   anchor 12 to 13: 24.5yd from Flamescale 84529, the nearest west member, so
+    //   like the east row it is a body pull from the camp and the pack comes to it.
+    //   36.5yd in 3D from the nearest mob overhead and 39.4 from the landing.
     //
-    //   It used to camp on the east pack's own floor (-7529.0, -921.0), and that is
-    //   30yd straight under the landing at z 457.9: the landing pack (formation
+    //   THE ROOM IS UNDER THE HALL. The Technician hall's north pack (formation
+    //   84558: Technicians, two Warlocks, a Spellbinder, an Overseer) stands at z 449.3,
+    //   21yd above the east camp and 17-31yd from it in plan, 26.9yd in 3D (see the
+    //   route's NO_STOP note: anchors 10-12 are under it). The west row used to fight
+    //   on the east camp too. Live (10/22 evening): 20s into the west pack's fight two
+    //   of those Warlocks went into combat with nothing having touched them and started
+    //   casting Demon Portal; they had no line of sight down, their Felguards came the
+    //   long way round, the raid went up after them and pulled the Suppression Room
+    //   with the hall pack: 48 deaths. The same row fought there clean that afternoon,
+    //   so it is a matter of how far south the raid spreads; the new camp gives 10yd
+    //   more (a follower on the 12yd camp leash is 27.5yd from the nearest hall mob in
+    //   3D, against 21.5).
+    //
+    //   It camped on the east pack's own floor (-7529.0, -921.0) before that, and that
+    //   is 30yd straight under the landing at z 457.9: the landing pack (formation
     //   84625) stands 2-10yd off it in plan, and Firemaw's waypoints 4 and 8 stop on
     //   it 22yd off. Live (10/21 evening): a landing Warlock was meleeing the off-tank
     //   15s into the west pack's fight and Firemaw was in it 10s later, both through
-    //   the floor; 46 deaths. The east camp is 38yd+ in 3D from every landing member
-    //   and 50yd from Firemaw's landing waypoint.
+    //   the floor; 46 deaths. The new camp is 39yd+ in 3D from every landing member
+    //   and 44yd from Firemaw's landing waypoint.
+    //
+    //   The east camp stays where it is: on the ground between the two packs nothing
+    //   is more than 1.6yd further from the hall without coming within the east
+    //   pack's reach or 35yd of the west pack, and its fights were clean both runs.
     //
     // Both rows arm off anchor 12, so the west row only becomes due once the tank
     // is back at the east camp with the east cylinder empty. Not yet measured
@@ -849,14 +866,15 @@ namespace
             dtWest.bossEntry  = BWL_BROODLORD;
             dtWest.order      = 1;
             dtWest.name       = "Blackwing Lair — Death Talon west pack";
-            dtWest.campX      = -7535.00f; dtWest.campY  = -952.00f; dtWest.campZ  = 428.50f;
-            dtWest.standX     = -7549.37f; dtWest.standY = -944.97f; dtWest.standZ = 428.65f;
+            dtWest.campX      = -7546.00f; dtWest.campY  = -943.75f; dtWest.campZ  = 428.65f;
+            dtWest.standX     = -7546.00f; dtWest.standY = -943.75f; dtWest.standZ = 428.65f;
             dtWest.packX      = -7581.20f; dtWest.packY  = -933.50f; dtWest.packZ  = 428.20f;
             dtWest.packRadius = 15.0f;
             dtWest.packZBand  = BWL_DT_ZBAND;
             dtWest.armX       = BWL_DT_ARM_X; dtWest.armY = BWL_DT_ARM_Y; dtWest.armZ = BWL_DT_ARM_Z;
             dtWest.armRadius  = BWL_DT_ARM_R;
             dtWest.entries    = deathTalon;
+            dtWest.bodyPull   = true;
             t.push_back(dtWest);
 
             // The Technician halls (see BLACKWING LAIR — THE TECHNICIAN HALLS above).

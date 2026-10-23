@@ -1619,7 +1619,7 @@ TEST(DcBlackwingLairDeathTalonTest, BothPacksArePlannedBeforeBroodlord)
                               [](ScriptedPullStage const* s) { return s->bossEntry != NPC_BROODLORD_LASHLAYER; }),
                rows.end());
     ASSERT_EQ(rows.size(), 2u);
-    EXPECT_EQ(rows[0]->order, 0u);  // east first: the west row camps on its floor
+    EXPECT_EQ(rows[0]->order, 0u);  // east first: the west row's camp is in its reach
     EXPECT_EQ(rows[1]->order, 1u);
     for (ScriptedPullStage const* s : rows)
     {
@@ -1652,21 +1652,18 @@ TEST(DcBlackwingLairDeathTalonTest, TheEastCampFightStaysOutOfTheWestPacksReach)
     EXPECT_GT(Nearest(east.campX, east.campY, kDeathTalonEast), ELITE_REACH);
 }
 
-TEST(DcBlackwingLairDeathTalonTest, TheWestCampIsTheEastCamp)
+// The west row is the east row's shape: a body pull from a camp just outside its own pack's
+// reach, so the party waiting there doesn't pull it before the tag.
+TEST(DcBlackwingLairDeathTalonTest, TheWestCampIsABodyPullJustOutsideItsPack)
 {
     ScriptedPullStage const& west = DtRow(1);
-    EXPECT_GT(Nearest(west.campX, west.campY, kDeathTalonWest), ELITE_REACH + CAMP_SPREAD);
-    // The east row's camp: ground the raid has just fought on, and out from under the
-    // landing (see TheWestCampIsOutFromUnderTheLanding).
-    EXPECT_FLOAT_EQ(west.campX, DtRow(0).campX);
-    EXPECT_FLOAT_EQ(west.campY, DtRow(0).campY);
-    EXPECT_FLOAT_EQ(west.campZ, DtRow(0).campZ);
-    // The tag is a ranged opener from the stand spot: in spell range of the nearest
-    // west member, and not inside the pack.
-    float const tag = Nearest(west.standX, west.standY, kDeathTalonWest);
-    EXPECT_GT(tag, 15.0f);
-    EXPECT_LT(tag, 30.0f);
-    EXPECT_FALSE(west.bodyPull);
+    float const own = Nearest(west.campX, west.campY, kDeathTalonWest);
+    EXPECT_GT(own, ELITE_REACH);
+    EXPECT_LT(own, 30.0f);
+    EXPECT_FLOAT_EQ(west.standX, west.campX);
+    EXPECT_FLOAT_EQ(west.standY, west.campY);
+    EXPECT_TRUE(west.bodyPull);
+    EXPECT_TRUE(DtRow(0).bodyPull);
 }
 
 TEST(DcBlackwingLairDeathTalonTest, StandSpotsAreCertifiedRouteGround)
@@ -1675,9 +1672,11 @@ TEST(DcBlackwingLairDeathTalonTest, StandSpotsAreCertifiedRouteGround)
         DungeonClearRouteRegistry::Get(MAP_ID, DUNGEON_DIFFICULTY_NORMAL, NPC_BROODLORD_LASHLAYER);
     ASSERT_NE(route, nullptr);
     ASSERT_GT(route->size(), 13u);
-    // The west row stands on anchor 13; both rows arm off anchor 12.
-    EXPECT_FLOAT_EQ(DtRow(1).standX, (*route)[13].x);
-    EXPECT_FLOAT_EQ(DtRow(1).standY, (*route)[13].y);
+    // Both rows arm off anchor 12, and the west row's camp is on the leg to anchor 13.
+    EXPECT_FLOAT_EQ(DtRow(1).armX, (*route)[12].x);
+    EXPECT_LT(std::sqrt(DcNoStopZone::DistSqToSegment(DtRow(1).campX, DtRow(1).campY, DtRow(1).campZ,
+                                                      (*route)[12], (*route)[13])),
+              4.0f);
     EXPECT_FLOAT_EQ(DtRow(0).armX, (*route)[12].x);
     EXPECT_FLOAT_EQ(DtRow(0).armY, (*route)[12].y);
     // The east camp is a few yards off anchor 12, toward its pack.
@@ -1881,10 +1880,17 @@ TEST(DcBlackwingLairTechnicianHallTest, TheUpperCampsStandInTheirPackClearOfTheR
             continue;
         ScriptedPullStage const& row = DtRow(pack.order);
         EXPECT_LT(NearestOf(row.campX, row.campY, pack), 10.0f) << row.name;
+        // Measured in 3D, as aggro is: row 5's camp on the 449 floor is 32.5yd in plan from
+        // the middle 465 pack but 15yd below it.
         for (HallPack const& other : packs)
             if (other.order > pack.order)
-                EXPECT_GT(NearestOf(row.campX, row.campY, other), ELITE_REACH + CAMP_SPREAD)
-                    << row.name << " vs row " << other.order;
+                for (std::size_t i = 0; i < other.count; ++i)
+                {
+                    Spawn const& m = other.members[i];
+                    EXPECT_GT(std::hypot(Dist2d(row.campX, row.campY, m), m.z - row.campZ),
+                              ELITE_REACH + CAMP_SPREAD)
+                        << row.name << " vs row " << other.order;
+                }
     }
     // The landing camp is Firemaw's own waypoint 4: floor he walks.
     EXPECT_FLOAT_EQ(DtRow(6).campX, kFiremawPath[3].x);
@@ -1929,6 +1935,27 @@ TEST(DcBlackwingLairDeathTalonTest, TheWestCampIsOutFromUnderTheLanding)
         EXPECT_GT(reach3d(m), 31.0f) << "landing member at (" << m.x << ", " << m.y << ")";
     EXPECT_GT(reach3d(kFiremawPath[3]), 40.0f) << "Firemaw's landing waypoint";
     EXPECT_GT(std::hypot(kFiremawPath[3].x - west.campX, kFiremawPath[3].y - west.campY), 35.0f);
+}
+
+// The Death Talon room is under the Technician hall's north pack (z 449.3). 10/22 evening:
+// two of its Warlocks went into combat during the west pack's fight on the east camp, with
+// nothing having touched them, and 48 died. The west camp, and a follower on its leash, is
+// 6yd further from every member of that pack in 3D than the east camp is.
+TEST(DcBlackwingLairDeathTalonTest, TheWestCampIsFurtherOutFromUnderTheHall)
+{
+    auto const reach3d = [](ScriptedPullStage const& row, Spawn const& p)
+    {
+        float const h = std::max(0.0f, std::hypot(p.x - row.campX, p.y - row.campY) - CAMP_SPREAD);
+        return std::hypot(h, p.z - row.campZ);
+    };
+    float nearestWest = 1e9f, nearestEast = 1e9f;
+    for (Spawn const& m : kHallNorthPack)
+    {
+        nearestWest = std::min(nearestWest, reach3d(DtRow(1), m));
+        nearestEast = std::min(nearestEast, reach3d(DtRow(0), m));
+    }
+    EXPECT_GT(nearestWest, 27.0f);
+    EXPECT_GT(nearestWest, nearestEast + 5.0f);
 }
 
 // The rows arm from where the tank stands: Broodlord's spawn and, if Firemaw died
