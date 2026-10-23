@@ -21,6 +21,7 @@ class Creature;
 class Map;
 struct DungeonBossInfo;
 struct BossAmbush;
+struct BossPartyHold;
 struct EventStep;
 struct DungeonEventProgress;
 
@@ -286,6 +287,12 @@ private:
         // whose live handle `liveBoss` then withholds. Both null otherwise.
         BossAmbush const* ambush = nullptr;
         Creature* ambushBoss = nullptr;
+        // Party-hold boss (BossPartyHoldRegistry) in force: the row, and whether
+        // this tick's walk target is the row's spot rather than the boss (the raid
+        // has not gathered there yet). Null / false otherwise.
+        BossPartyHold const* partyHold = nullptr;
+        Creature* partyHoldBoss = nullptr;   // the loaded boss the row is for
+        bool partyHoldWalk = false;
 
         DcApproachState* appr = nullptr;                    // owned approach FSM state
         ChunkedPathfinder::Result const* path = nullptr;    // resolved after EnsureLongPath
@@ -312,6 +319,10 @@ private:
     Step TryBossNotPresentStall(AdvanceState const& st);
     Step TryPatrollingBossHold(AdvanceState const& st);
     Step TryAmbushHold(AdvanceState const& st);
+    Step TryPartyHold(AdvanceState const& st);
+    // The party-hold row for `next` when it applies this tick (see TryPartyHold).
+    BossPartyHold const* PartyHoldInForce(DcApproachState& appr, DungeonBossInfo const& next,
+                                          Creature* boss);
     // The ambush row for `next` when it applies this tick (see TryAmbushHold).
     BossAmbush const* AmbushInForce(DcApproachState& appr, DungeonBossInfo const& next,
                                     Creature* boss);
@@ -940,6 +951,26 @@ class DungeonClearTransitPackAction : public DcMovementAction
 public:
     DungeonClearTransitPackAction(PlayerbotAI* botAI)
         : DcMovementAction(botAI, "dungeon clear transit pack")
+    {
+    }
+    bool Execute(Event event) override;
+};
+
+// Follower-only, non-combat: WAIT ON THE PARTY-HOLD SPOT while the tank fetches
+// the boss (BossPartyHoldRegistry; the leader publishes the spot from
+// DungeonClearAdvanceAction::TryPartyHold). Walks the bot to its own fuzzed slot
+// off the spot (DcPullPlanner::ComputeCampSlot, as hold-at-camp does), tears down
+// the follow-tank generator the once, and once parked YIELDS the tick so the
+// raid rests, eats and buffs there — the stock movers that would drift it off
+// (follow-master, wander, self-pull) are zeroed by DungeonClearMultiplier for a
+// held follower, and follow-tank itself stands down on the same signal. Driven
+// by DungeonClearPartyHoldTrigger; inert the tick the signal drops (the boss is
+// in combat: the tank has him), which is when the raid runs in.
+class DungeonClearPartyHoldAction : public DcMovementAction
+{
+public:
+    DungeonClearPartyHoldAction(PlayerbotAI* botAI)
+        : DcMovementAction(botAI, "dungeon clear party hold")
     {
     }
     bool Execute(Event event) override;

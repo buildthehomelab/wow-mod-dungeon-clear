@@ -424,6 +424,18 @@ public:
     // process-wide mutex acquisition; a caller that needs the leader for its own
     // reasons must not pay for a second one.
     static bool GetTransitAnchorFrom(Player* leader, Position& out);
+
+    // PARTY HOLD (BossPartyHoldRegistry): is the raid to wait on a spot while the
+    // tank fetches the next boss, and where. True only while the leader has armed
+    // it AND the world still agrees — the boss it names loaded, alive and out of
+    // combat, the leader alive and out of combat, the run on and unpaused — so the
+    // pull, the kill, a wipe, `dc pause` and `dc off` all release the raid within
+    // a tick with no latch of its own to reset. The leader is exempt: it is the
+    // one walking away. See DcRunState::partyHoldArmed for why this is a latch
+    // validated on read rather than a per-tick stamp.
+    static bool GetPartyHoldSpot(Player* bot, Position& out);
+    // The same read for a caller that has already resolved the leader.
+    static bool GetPartyHoldSpotFrom(Player* leader, Position& out);
 };
 
 #endif  // _DC_LEADER_SIGNAL_H

@@ -13,6 +13,7 @@
 #include "Position.h"
 
 #include "Ai/Dungeon/DungeonClear/Data/BossAmbushRegistry.h"
+#include "Ai/Dungeon/DungeonClear/Data/BossPartyHoldRegistry.h"
 #include "Ai/Dungeon/DungeonClear/Data/DcTargetExclusionRegistry.h"
 #include "Ai/Dungeon/DungeonClear/Data/DungeonClearRouteRegistry.h"
 #include "Ai/Dungeon/DungeonClear/Data/DungeonEventRegistry.h"
@@ -2239,6 +2240,83 @@ TEST(DcBlackwingLairWyrmguardTest, TrioBRowArmsWhereTheTankStands)
     // Never from the landing, where rows 7-9 have not run yet.
     EXPECT_FALSE(ScriptedPullRegistry::InArmRange(b, kFiremawPath[3].x, kFiremawPath[3].y,
                                                   kFiremawPath[3].z));
+}
+
+// THE RAID WAITS WHILE THE TANK FETCHES THE DRAKE (BossPartyHoldRegistry). Both
+// drakes are walked by the raid strategy to one tank spot (-7384.6, -954.8); the
+// raid used to follow the tank to wherever he was caught and stand across the
+// ground he was then dragged over — for Flamegor, up on the 477 tier among his
+// trio. Now it waits: Ebonroc's raid on trio B's stand spot, out of his loop's
+// reach; Flamegor's on the ledge picked in game on 10/23, which Ebonroc's own
+// pull cannot use because the middle 465 pack stands 12yd from it and is fought
+// after him (TheMiddlePackWaitsForEbonroc).
+namespace
+{
+    constexpr float RAID_SPREAD = 40.0f;  // DungeonClear.PartyMaxSpread, raid default
+    constexpr int32 ROW_MIDDLE_PACK = 8;
+    Spawn const kLedge = {-7426.5f, -966.2f, 464.9f};
+}
+
+TEST(DcBlackwingLairWyrmguardTest, EbonrocsRaidWaitsOnTrioBsStandSpotOutOfHisLoop)
+{
+    BossPartyHold const* h = BossPartyHoldRegistry::Find(MAP_ID, NPC_EBONROC_ENTRY);
+    ASSERT_NE(h, nullptr);
+    // Walked ground: where row 10 tagged the trio from.
+    ScriptedPullStage const& b = DtRow(ROW_TRIO_B);
+    EXPECT_LT(Dist2d(h->x, h->y, {b.standX, b.standY, b.standZ}), 1.0f);
+    EXPECT_NEAR(h->z, 465.1f, 2.0f);
+    EXPECT_EQ(h->afterStage, ROW_TRIO_B);
+    // He walks past unengaged while the raid stands there: out of his reach from
+    // every point of his path, by a margin for the slots round the spot.
+    EXPECT_GT(DistToEbonrocPath(h->x, h->y), ELITE_REACH + h->arriveRadius + 5.0f);
+    // Inside the raid spread of where the tank waits for him (the ambush spot)
+    // and of where he is held: the engage is never gated on a raid told to stay.
+    BossAmbush const* e = BossAmbushRegistry::Find(MAP_ID, NPC_EBONROC_ENTRY);
+    ASSERT_NE(e, nullptr);
+    EXPECT_LT(Dist2d(h->x, h->y, {e->x, e->y, e->z}), RAID_SPREAD);
+    EXPECT_LT(Dist2d(h->x, h->y, kEbonrocTankSpot), RAID_SPREAD);
+    // The middle pack is still up while he is next: clear of it, and of the trio
+    // the row it waits on drags away.
+    EXPECT_GT(Nearest(h->x, h->y, kTierMiddlePack), ELITE_REACH + CAMP_SPREAD);
+    EXPECT_LT(Nearest(h->x, h->y, kTrioB), h->clearRadius) << "why it waits on row 10";
+    EXPECT_GE(h->clearRadius, ELITE_REACH);
+    EXPECT_GT(h->gatherBudgetMs, 20000u);
+}
+
+TEST(DcBlackwingLairWyrmguardTest, FlamegorsRaidWaitsOnTheLedgeAfterTheMiddlePack)
+{
+    BossPartyHold const* h = BossPartyHoldRegistry::Find(MAP_ID, NPC_FLAMEGOR_ENTRY);
+    ASSERT_NE(h, nullptr);
+    EXPECT_LT(Dist2d(h->x, h->y, kLedge), 1.0f);
+    EXPECT_NEAR(h->z, kLedge.z, 1.0f);
+    // Far from him and from his trio: the tank fetches him down the ramp alone.
+    EXPECT_GT(Dist2d(h->x, h->y, kFlamegor), 60.0f);
+    EXPECT_GT(Nearest(h->x, h->y, kTrioA), 50.0f);
+    // The tank spot is beyond the raid's own reach but inside the spread.
+    EXPECT_GT(Dist2d(h->x, h->y, kEbonrocTankSpot), 30.0f);
+    EXPECT_LT(Dist2d(h->x, h->y, kEbonrocTankSpot), RAID_SPREAD + 5.0f);
+    // The ledge is in the middle pack's lap — the reason it waits on row 8, which
+    // is the row fought while Flamegor is next — and at the foot of Ebonroc's
+    // ramp, which is empty by then: he is boss 5 of 8, Flamegor 6.
+    EXPECT_LT(Nearest(h->x, h->y, kTierMiddlePack), ELITE_REACH);
+    EXPECT_EQ(h->afterStage, ROW_MIDDLE_PACK);
+    EXPECT_TRUE(DtRow(ROW_MIDDLE_PACK).DueFor(NPC_FLAMEGOR_ENTRY));
+    EXPECT_LT(DistToEbonrocPath(h->x, h->y), ELITE_REACH) << "only safe once Ebonroc is dead";
+    EXPECT_GE(h->clearRadius, ELITE_REACH);
+    EXPECT_EQ(BossAmbushRegistry::Find(MAP_ID, NPC_FLAMEGOR_ENTRY), nullptr)
+        << "he is approached at his spawn, the raid waiting below";
+}
+
+TEST(DcBlackwingLairWyrmguardTest, OnlyTheTwoWalkedDrakesHaveAPartyHold)
+{
+    EXPECT_EQ(BossPartyHoldRegistry::Find(MAP_ID, NPC_FIREMAW_ENTRY), nullptr)
+        << "Firemaw is ambushed where he turns, and fought there";
+    EXPECT_EQ(BossPartyHoldRegistry::Find(MAP_ID, NPC_RAZORGORE), nullptr);
+    EXPECT_EQ(BossPartyHoldRegistry::Find(MAP_ID, NPC_VAELASTRASZ), nullptr);
+    EXPECT_EQ(BossPartyHoldRegistry::Find(MAP_ID, NPC_BROODLORD_LASHLAYER), nullptr);
+    EXPECT_EQ(BossPartyHoldRegistry::Find(MAP_ID, NPC_CHROMAGGUS), nullptr);
+    EXPECT_EQ(BossPartyHoldRegistry::Find(MAP_ID, NPC_NEFARIAN), nullptr);
+    EXPECT_EQ(BossPartyHoldRegistry::Find(409, 12056), nullptr) << "Geddon is ambushed, not fetched";
 }
 
 TEST(DungeonEventBlackwingLairTest, TransitStopsBeforeBroodlordAndDoesNotRearmOnApproach)

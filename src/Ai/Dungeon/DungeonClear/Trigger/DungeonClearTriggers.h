@@ -744,6 +744,26 @@ public:
     bool IsActive() override;
 };
 
+// THE RAID WAITS WHILE THE TANK FETCHES THE BOSS (BossPartyHoldRegistry).
+//
+// Follower-only, non-combat, raid maps only. Fires while the leader publishes a
+// party-hold spot (DcLeaderSignal::GetPartyHoldSpot) and this bot is off its slot
+// there. Inert once parked — the action yields and the multiplier keeps the stock
+// movers off the bot — and inert the moment the signal drops, which the signal
+// ties to the boss entering combat: the pull is the release. A follower in combat
+// never holds (the fight is the raid strategy's); the leader is exempt (it is the
+// one walking away). Free everywhere else: the map compare rejects before
+// anything is read. See DungeonClearPartyHoldAction.
+class DungeonClearPartyHoldTrigger : public Trigger
+{
+public:
+    DungeonClearPartyHoldTrigger(PlayerbotAI* botAI)
+        : Trigger(botAI, "dungeon clear party hold", 1)
+    {
+    }
+    bool IsActive() override;
+};
+
 // IS THIS BOT AIMED AT SOMETHING IT IS FORBIDDEN TO DAMAGE RIGHT NOW?
 //
 // The second half of DcTargetExclusionRegistry, and the half that had to exist.

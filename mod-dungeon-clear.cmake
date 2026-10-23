@@ -108,6 +108,7 @@ if (BUILD_TESTING)
             "${MOD_PATH}/t/TestRaidScale.cpp"
             "${MOD_PATH}/t/TestRaidMuster.cpp"
             "${MOD_PATH}/t/TestMoltenCore.cpp"
+            "${MOD_PATH}/t/TestPartyHoldDecision.cpp"
             "${MOD_PATH}/t/TestKarazhan.cpp"
     "${MOD_PATH}/t/TestKarazhanChess.cpp"
     "${MOD_PATH}/t/TestKarazhanChessSim.cpp"

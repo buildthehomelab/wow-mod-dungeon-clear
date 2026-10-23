@@ -98,6 +98,15 @@ namespace DcRel
     inline constexpr float AtObjective      = 30.0f; // arrive at a travel objective (anchor-kind peer)
     inline constexpr float AssistCamp       = 29.0f; // follower: pile into the leader's fight
     inline constexpr float HoldAtCamp       = 28.0f; // follower: hold passive at camp mid-pull
+    // Party hold (BossPartyHoldRegistry): the raid waits on a spot while the tank
+    // fetches the boss. BELOW HoldAtCamp, which must win while a maneuver or a
+    // scripted stage owns the party (the party hold is refused then) and which
+    // stands down between maneuvers while the party hold is live
+    // (DcLeaderSignal::GetLeaderCampHold); ABOVE NeedsRest so a hungry straggler walks to
+    // the spot first and eats there — the action yields once parked, so the rest
+    // rung gets its ticks anyway; and above FollowTank, which stands down on the
+    // same signal.
+    inline constexpr float PartyHold        = 27.5f; // follower: wait on the spot while the tank fetches the boss
     inline constexpr float NeedsRest        = 26.5f; // rest to target HP/mana (tie-broken above RoomTrash)
     inline constexpr float RoomTrash        = 26.0f; // room-aggro boss pre-clear
     inline constexpr float BlockingTrash    = 25.0f; // leader: engage a pack blocking the path

@@ -276,6 +276,12 @@ inline constexpr DcSettingDef kDcSettings[] =
     // driver publishes) and the leg behaves exactly as it did before.
     { "SuppressionTransit",    DcType::Bool,   1,   0,   1,  true  },
 
+    // BossPartyHold is the master switch for BossPartyHoldRegistry (the raid waits
+    // on a spot while the tank fetches the boss: Blackwing Lair's Ebonroc and
+    // Flamegor). Off, the rows are inert and the raid trails the tank to the boss
+    // as it always did. Raid maps only by construction (the rows are raid rows).
+    { "BossPartyHold",         DcType::Bool,   1,   0,   1,  true  },
+
     // THE GATHER GATE at the staging point — the one place on this leg the raid
     // can wait for its stragglers for free (nearest whelp 40.8yd, nearest device
     // 50.1yd, no whelp within 30yd).

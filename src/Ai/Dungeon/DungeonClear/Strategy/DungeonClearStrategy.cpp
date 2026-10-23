@@ -195,6 +195,14 @@ void DungeonClearStrategy::InitTriggers(std::vector<TriggerNode*>& triggers)
         "dungeon clear hold at camp",
         { NextAction("dungeon clear hold at camp", DcRel::HoldAtCamp) }));
 
+    // The raid waits on a hand-authored spot while the tank fetches a party-hold
+    // boss (BossPartyHoldRegistry: Blackwing Lair's Ebonroc and Flamegor). Raid
+    // maps only; inert on every other map at the cost of one compare. See
+    // DungeonClearPartyHoldTrigger.
+    triggers.push_back(new TriggerNode(
+        "dungeon clear party hold",
+        { NextAction("dungeon clear party hold", DcRel::PartyHold) }));
+
     // Leader-fight assist: while the leader tank is in combat, every follower
     // still OUT of combat is driven into the fight — the advanced-pull camp
     // fight, but also any Leeroy/dynamic/boss pull the tank took around a corner

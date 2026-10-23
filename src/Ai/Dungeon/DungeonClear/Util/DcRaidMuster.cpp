@@ -5,6 +5,7 @@
 
 #include "DcRaidMuster.h"
 
+#include "DcLeaderSignal.h"
 #include "DcRun.h"
 #include "Ai/Dungeon/DungeonClear/Data/DungeonBossInfo.h"
 #include "Ai/Dungeon/DungeonClear/Settings/DcSettings.h"
@@ -133,6 +134,11 @@ bool DcRaidMuster::Holds(Player* bot, PlayerbotAI* botAI, AiObjectContext* conte
     bool topped = true;
     bool rebuffPending = false;
     float const spread = DcSettings::GetFloat(bot, "PartyMaxSpread");
+    // A PARTY HOLD (BossPartyHoldRegistry) stages the raid on its spot, not round
+    // the tank, who has walked off to fetch the boss on purpose. Validated live,
+    // as the followers read it.
+    Position holdSpot;
+    bool const holdLive = DcLeaderSignal::GetPartyHoldSpotFrom(bot, holdSpot);
     if (Group* group = bot->GetGroup())
     {
         for (GroupReference* ref = group->GetFirstMember(); ref; ref = ref->next())
@@ -151,7 +157,8 @@ bool DcRaidMuster::Holds(Player* bot, PlayerbotAI* botAI, AiObjectContext* conte
                 topped = false;
             if (!isBot)
                 continue;
-            if (member != bot && bot->GetDistance(member) > spread)
+            if (member != bot &&
+                (holdLive ? member->GetDistance(holdSpot) : bot->GetDistance(member)) > spread)
                 staged = false;
             if (memberAI->forceRebuff.IsPending())
                 rebuffPending = true;
