@@ -1830,7 +1830,14 @@ TEST(DcBlackwingLairTechnicianHallTest, EightPacksInKillOrderWithTheirBoss)
         EXPECT_EQ(s.patrolGuardEntries,
                   floor ? std::vector<uint32>{NPC_FIREMAW_ENTRY} : std::vector<uint32>{})
             << s.name;
-        // The camp is the stand spot: the tank walks from it at the pack.
+        // The camp is the stand spot: the tank walks from it at the pack. The south and
+        // north rows wait at the door pack's camp instead (TheFloorRowsWaitAtTheDoor).
+        if (pack.order == 3 || pack.order == 4)
+        {
+            EXPECT_FLOAT_EQ(s.campX, DtRow(2).campX);
+            EXPECT_FLOAT_EQ(s.campY, DtRow(2).campY);
+            continue;
+        }
         EXPECT_FLOAT_EQ(s.standX, s.campX);
         EXPECT_FLOAT_EQ(s.standY, s.campY);
     }
@@ -1857,7 +1864,8 @@ TEST(DcBlackwingLairTechnicianHallTest, EachCylinderHoldsItsOwnPackAndNoOther)
 // The floor rows wait on Firemaw before the tag, so the raid has to be able to stand
 // at the camp without pulling its own pack (just outside an elite's reach, and close
 // enough that the casters planted at their spawns stay in range), and the fight must
-// not reach any pack after it.
+// not reach any pack after it. For the rows that wait at the door, that holds for the
+// stand spot the camp walks up to.
 TEST(DcBlackwingLairTechnicianHallTest, TheFloorCampsWaitJustOutsideTheirOwnPack)
 {
     std::vector<HallPack> const packs = HallPacks();
@@ -1866,13 +1874,56 @@ TEST(DcBlackwingLairTechnicianHallTest, TheFloorCampsWaitJustOutsideTheirOwnPack
         if (pack.order > 4)
             continue;
         ScriptedPullStage const& row = DtRow(pack.order);
-        float const own = NearestOf(row.campX, row.campY, pack);
+        float const own = NearestOf(row.standX, row.standY, pack);
         EXPECT_GT(own, ELITE_REACH) << row.name;
         EXPECT_LT(own, 30.0f) << row.name;
         for (HallPack const& other : packs)
             if (other.order > pack.order)
                 EXPECT_GT(NearestOf(row.campX, row.campY, other), ELITE_REACH + CAMP_SPREAD)
                     << row.name << " vs row " << other.order;
+    }
+}
+
+// 10/22 evening: a follower walking to its slot on the south camp's pack side (slots reach
+// ~11yd out) pulled the pack before the tag, the raid chased its Technicians onto Firemaw's
+// path, and Firemaw and the floor Wyrmguard pack came in: 51 deaths. The south and north rows
+// wait at the door pack's camp: out of their packs' reach with the whole slot spread, and
+// well off Firemaw's path, where their old camps were 19.0 and 12.8yd from it.
+TEST(DcBlackwingLairTechnicianHallTest, TheFloorRowsWaitAtTheDoor)
+{
+    std::vector<HallPack> const packs = HallPacks();
+    auto const toFiremawPath = [](float x, float y)
+    {
+        float best = 1e9f;
+        for (std::size_t i = 0; i + 2 < std::size(kFiremawPath); ++i)
+        {
+            Spawn const& a = kFiremawPath[i];
+            Spawn const& b = kFiremawPath[i + 1];
+            float const dx = b.x - a.x, dy = b.y - a.y;
+            float t = ((x - a.x) * dx + (y - a.y) * dy) / (dx * dx + dy * dy);
+            t = std::max(0.0f, std::min(1.0f, t));
+            best = std::min(best, std::hypot(x - (a.x + t * dx), y - (a.y + t * dy)));
+        }
+        return best;
+    };
+    float constexpr SLOT_SPREAD = 11.0f;
+    for (int32 order : {3, 4})
+    {
+        ScriptedPullStage const& row = DtRow(order);
+        EXPECT_FLOAT_EQ(row.campX, DtRow(2).campX) << row.name;
+        EXPECT_FLOAT_EQ(row.campY, DtRow(2).campY) << row.name;
+        EXPECT_TRUE(row.bodyPull) << row.name;
+        // Waiting there pulls nothing still up: neither floor pack, slots included.
+        for (HallPack const& pack : packs)
+            if (pack.order >= order)
+                EXPECT_GT(NearestOf(row.campX, row.campY, pack), ELITE_REACH + SLOT_SPREAD + 10.0f)
+                    << row.name << " vs row " << pack.order;
+        EXPECT_GT(toFiremawPath(row.campX, row.campY), 40.0f) << row.name;
+        // The old camp, now the stand spot, was the one in his way.
+        EXPECT_LT(toFiremawPath(row.standX, row.standY), 20.0f) << row.name;
+        // The camp walks up its stand-spot line: the stand is nearer the pack than the camp.
+        HallPack const& own = packs[std::size_t(order - 2)];
+        EXPECT_LT(NearestOf(row.standX, row.standY, own), NearestOf(row.campX, row.campY, own));
     }
 }
 

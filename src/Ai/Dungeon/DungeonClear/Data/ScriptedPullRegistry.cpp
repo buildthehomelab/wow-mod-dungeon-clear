@@ -611,6 +611,20 @@ namespace
     //
     //   Then Firemaw, at his near end, with nothing left in 80yd of it.
     //
+    //   THE FLOOR CAMPS WAIT AT THE DOOR (10/22 evening). The south and north camps
+    //   are 25.3 / 24.9yd off their packs, and the party's slots round a camp reach
+    //   ~11yd out: at 23:51:28 a follower walking to its slot on the south camp's pack
+    //   side (18yd from a Technician) pulled the pack before the tag, the safety release
+    //   freed the raid, bots chased the Technicians east onto Firemaw's path (one stood at
+    //   -7513,-1023), Firemaw came in at 23:52:09 and the floor Wyrmguard pack after him:
+    //   51 deaths. Those camps are also 19.0 / 12.8yd from Firemaw's path. So both rows
+    //   wait at the door pack's camp, dead by then and already where the raid stands:
+    //   57.9yd from the south pack, 63.6 from the north, 43.4 from Firemaw's path. The
+    //   old camps stay as the stand spots: the tank walks out to them and on to the
+    //   pack's edge, the Overseer comes back to the door, and once the Technicians and
+    //   Warlocks have stood off for 8s the camp walks up to the stand spot 12yd at a
+    //   time (DC_SCRIPTED_PULL_CAMP_STEP), as for any caster that will not come.
+    //
     //   AFTER HIM (orders 5-9, Ebonroc next): the Wyrmguard pack on his path, the
     //   landing pack, then the 465 tier north, middle, east. The middle pack (order 8)
     //   has since moved to after Ebonroc: see THE MIDDLE PACK WAITS FOR EBONROC below. Each camp is a spawn
@@ -628,6 +642,8 @@ namespace
     uint32 constexpr BWL_BW_TECHNICIAN    = 13996;
 
     float constexpr BWL_HALL_CAMP_X = -7592.90f, BWL_HALL_CAMP_Y = -1075.20f, BWL_HALL_CAMP_Z = 449.20f;
+    // The door pack's camp (row 2), where the south and north rows wait.
+    float constexpr BWL_DOOR_CAMP_X = -7578.00f, BWL_DOOR_CAMP_Y = -1035.00f, BWL_DOOR_CAMP_Z = 449.30f;
     float constexpr BWL_FLOOR_CAMP_X = -7520.20f, BWL_FLOOR_CAMP_Y = -1025.80f, BWL_FLOOR_CAMP_Z = 449.10f;
     float constexpr BWL_LANDING_CAMP_X = -7506.60f, BWL_LANDING_CAMP_Y = -923.10f, BWL_LANDING_CAMP_Z = 457.90f;
     float constexpr BWL_HALL_ARM_R  = 100.0f;
@@ -909,17 +925,24 @@ namespace
                 float packX, packY, packZ, packRadius;
                 float armX, armY, armZ, armRadius;
                 bool wyrmguard;
+                // Where the party waits and the fight starts, when that isn't the stand
+                // spot above: (0,0,0) => camp and stand are the same.
+                float waitX{0.0f}, waitY{0.0f}, waitZ{0.0f};
             };
             HallRow const hallRows[] = {
                 { 2, BWL_FIREMAW, BWL_EBONROC, "Blackwing Lair — Technician hall, the Warlock pack by Broodlord's door",
                   -7578.00f, -1035.00f, 449.30f, -7549.40f, -1027.00f, 449.30f, 17.0f,
                   BWL_HALL_CAMP_X, BWL_HALL_CAMP_Y, BWL_HALL_CAMP_Z, BWL_HALL_ARM_R, false },
+                // The south and north packs: the party waits at the door pack's camp (see
+                // THE FLOOR CAMPS WAIT AT THE DOOR above).
                 { 3, BWL_FIREMAW, BWL_EBONROC, "Blackwing Lair — Technician hall, the south Overseer pack",
                   -7548.60f, -1049.00f, 449.20f, -7508.40f, -1049.10f, 449.30f, 24.0f,
-                  BWL_HALL_CAMP_X, BWL_HALL_CAMP_Y, BWL_HALL_CAMP_Z, BWL_HALL_ARM_R, false },
+                  BWL_HALL_CAMP_X, BWL_HALL_CAMP_Y, BWL_HALL_CAMP_Z, BWL_HALL_ARM_R, false,
+                  BWL_DOOR_CAMP_X, BWL_DOOR_CAMP_Y, BWL_DOOR_CAMP_Z },
                 { 4, BWL_FIREMAW, BWL_EBONROC, "Blackwing Lair — Technician hall, the north Overseer pack",
                   -7528.50f, -1016.00f, 449.20f, -7528.50f, -975.70f, 449.30f, 24.0f,
-                  BWL_HALL_CAMP_X, BWL_HALL_CAMP_Y, BWL_HALL_CAMP_Z, BWL_HALL_ARM_R, false },
+                  BWL_HALL_CAMP_X, BWL_HALL_CAMP_Y, BWL_HALL_CAMP_Z, BWL_HALL_ARM_R, false,
+                  BWL_DOOR_CAMP_X, BWL_DOOR_CAMP_Y, BWL_DOOR_CAMP_Z },
                 { 5, BWL_EBONROC, 0, "Blackwing Lair — Technician hall, the Wyrmguard and Overseers",
                   -7463.60f, -993.20f, 449.90f, -7455.60f, -992.40f, 449.85f, 14.0f,
                   BWL_FLOOR_CAMP_X, BWL_FLOOR_CAMP_Y, BWL_FLOOR_CAMP_Z, BWL_UPPER_ARM_R, true },
@@ -949,6 +972,15 @@ namespace
                 // The camp is the stand spot: the tank walks from it at the pack and
                 // the fight stays there (MgT hall-patrol row).
                 s.standX     = r.campX;  s.standY = r.campY;  s.standZ = r.campZ;
+                // ...unless the row waits further back: then the fight starts at the
+                // wait spot and the camp walks up to the stand spot at the casters that
+                // won't come (DC_SCRIPTED_PULL_CAMP_STEP).
+                if (r.waitX != 0.0f || r.waitY != 0.0f || r.waitZ != 0.0f)
+                {
+                    s.campX = r.waitX;
+                    s.campY = r.waitY;
+                    s.campZ = r.waitZ;
+                }
                 s.packX      = r.packX;  s.packY  = r.packY;  s.packZ  = r.packZ;
                 s.packRadius = r.packRadius;
                 s.packZBand  = BWL_HALL_ZBAND;
