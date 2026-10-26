@@ -3,6 +3,7 @@
  * and/or modify it under version 3 of the License, or (at your option), any later version.
  */
 
+#include "Ai/Dungeon/DungeonClear/Data/Events/RazorfenKraulEvents.h"
 #include "DcLeaderSignal.h"
 
 #include "DungeonClearUtil.h"   // DC_PULL_* log macros
@@ -619,6 +620,9 @@ Creature* DcLeaderSignal::GetLeaderEscortee(Player* bot)
     AiObjectContext* ctx = leaderAI->GetAiObjectContext();
     if (!DcRun::Of(ctx).enabled || DcRun::Of(ctx).paused)
         return nullptr;
+
+    if (Creature* escortee = DcRazorfenKraul::OwnedEscort(leader))
+        return bot->IsWithinDistInMap(escortee, 80.0f) ? escortee : nullptr;
 
     // The leader's active anchored-event step must be an EscortCreature.
     std::optional<DungeonBossInfo> const next =

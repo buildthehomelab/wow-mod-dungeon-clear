@@ -474,6 +474,7 @@ namespace
             RegisterShadowfangKeepEvents(t);
             RegisterScarletMonasteryEvents(t);
             RegisterRazorfenDownsEvents(t);
+            RegisterRazorfenKraulEvents(t);
             RegisterSunkenTempleEvents(t);
             RegisterZulFarrakEvents(t);
             RegisterBlackrockDepthsEvents(t);

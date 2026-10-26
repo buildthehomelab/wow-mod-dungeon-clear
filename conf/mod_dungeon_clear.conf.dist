@@ -2107,3 +2107,7 @@ DungeonClear.BgQueueFill.GearQuality = 0
 #
 
 DungeonClear.BgQueueFill.LogoutOnRelease = 1
+
+# Follow/protect Willix only after a nearby party owner starts quest 1144.
+# Does not accept, share, reward or start quests; allows config reload.
+DungeonClear.EnableRazorfenKraulEscort = 0

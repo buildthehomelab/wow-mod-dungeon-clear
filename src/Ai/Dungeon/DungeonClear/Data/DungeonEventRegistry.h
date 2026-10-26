@@ -285,6 +285,7 @@ struct EventStep
     // scan radius used to (re)resolve it live each tick. `gossipOption` is the
     // menu option that STARTS its scripted escort (re-run for self-heal when it
     // resets to idle). The remaining knobs:
+    EventCondition escortActive{}; // Optional externally started escort; never start gossip or alter pace.
     float  escortStandoff{0.0f};    // follow slot distance to hold BEHIND the
                                     // escortee (offset so the tank never blocks
                                     // its movement spline). 0 => per-kind default.
