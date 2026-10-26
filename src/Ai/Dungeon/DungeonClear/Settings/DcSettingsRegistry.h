@@ -838,6 +838,7 @@ inline constexpr DcSettingDef kDcSettings[] =
     // can be switched off entirely — DcSpectator::Start refuses with a message
     // when it is 0. SpectateSpeed is the movement speed multiplier applied to the
     // possessed camera dummy (flight and run). See Util/DcSpectator.h.
+    { "EnableRazorfenKraulEscort", DcType::Bool, 0, 0, 1, false },
     { "SpectateEnable",        DcType::Bool,   1,   0,   1,  false },
     { "SpectateSpeed",         DcType::Float, 2.5, 0.5,  8,  true  },
 

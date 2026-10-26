@@ -62,6 +62,7 @@ void RegisterSunkenTempleEvents(std::vector<DungeonEvent>& out);
 void RegisterZulFarrakEvents(std::vector<DungeonEvent>& out);
 void RegisterShadowfangKeepEvents(std::vector<DungeonEvent>& out);
 void RegisterScarletMonasteryEvents(std::vector<DungeonEvent>& out);
+void RegisterRazorfenKraulEvents(std::vector<DungeonEvent>& out);
 void RegisterRazorfenDownsEvents(std::vector<DungeonEvent>& out);
 void RegisterBlackrockDepthsEvents(std::vector<DungeonEvent>& out);
 void RegisterDeadminesEvents(std::vector<DungeonEvent>& out);

@@ -21,6 +21,7 @@
 
 #include "Creature.h"
 #include "CreatureAI.h"
+#include "TargetValue.h"
 #include "DBCStores.h"
 #include "GameObject.h"
 #include "Group.h"
@@ -1407,9 +1408,28 @@ namespace
     Unit* PickEscortThreat(Player* bot, AiObjectContext* ctx, Creature* escortee,
                            EventStep const& step)
     {
+        class ActiveEscortTarget : public FindNonCcTargetStrategy
+        {
+        public:
+            ActiveEscortTarget(PlayerbotAI* ai) : FindNonCcTargetStrategy(ai) {}
+            void CheckAttacker(Unit*, ThreatManager*) override {}
+            bool Allowed(Unit* target)
+            {
+                if (!target || target->HasBreakableByDamageCrowdControlAura() || IsCcTarget(target))
+                    return false;
+                Player* controller = target->IsPlayer() ? target->ToPlayer() : target->GetCharmerOrOwnerPlayerOrPlayerItself();
+                Player* leader = botAI->GetBot();
+                return !controller || (controller != leader &&
+                    (!leader->GetGroup() || !leader->GetGroup()->IsMember(controller->GetGUID())));
+            }
+        };
+        auto allowed = [bot, &step](Unit* target)
+        {
+            return !step.escortActive || ActiveEscortTarget(GET_PLAYERBOT_AI(bot)).Allowed(target);
+        };
         for (Unit* att : escortee->getAttackers())
         {
-            if (!att || !att->IsAlive())
+            if (!att || !att->IsAlive() || !allowed(att))
                 continue;
             if (!bot->IsValidAttackTarget(att))
                 continue;
@@ -1421,9 +1441,10 @@ namespace
         }
 
         float const r = step.escortThreatRadius > 0.0f ? step.escortThreatRadius : 18.0f;
-        return DcTargeting::NearestHostileNearPoint(bot, ctx, escortee->GetPositionX(),
+        Unit* target = DcTargeting::NearestHostileNearPoint(bot, ctx, escortee->GetPositionX(),
                                                     escortee->GetPositionY(),
                                                     escortee->GetPositionZ(), r, step.zBand);
+        return allowed(target) ? target : nullptr;
     }
 
     // Distance-to-escortee progress watchdog. While the tank is keeping up (close
@@ -1449,6 +1470,8 @@ namespace
 bool DungeonClearEngageActionBase::DriveEscortCreature(EventStep const& step,
                                                        DungeonEventProgress& prog)
 {
+    if (step.escortActive && !step.escortActive(bot, context))
+        return false;
     uint32 const now = getMSTime();
 
     // Final boss exists -> escort is over. Don't own the tick: the caller falls
@@ -1477,7 +1500,8 @@ bool DungeonClearEngageActionBase::DriveEscortCreature(EventStep const& step,
 
     // Keep the party at the escortee's pace so a mounted ride never outruns it (and
     // resets his npc_escortAI). Mirrors his live run rate: 1.0 on foot, 1.6 mounted.
-    ApplyEscortPartyRunSpeed(bot, escortee->GetSpeedRate(MOVE_RUN));
+    if (!step.escortActive)
+        ApplyEscortPartyRunSpeed(bot, escortee->GetSpeedRate(MOVE_RUN));
 
     // COMBAT-WEDGE UNSTICK — upstream azerothcore-wotlk#25617: at the Durnholde
     // armory, Thrall's scripted Knockout (spell 32890) on the UNATTACKABLE
@@ -1543,7 +1567,7 @@ bool DungeonClearEngageActionBase::DriveEscortCreature(EventStep const& step,
     // separate step-0 Gossip) so a Persistent event — which never auto-rewinds to
     // step 0 — still recovers when he dies mid-escort. Idempotent: once started his
     // faction is 250 and this is skipped.
-    if (escortee->GetFaction() == DC_ESCORT_IDLE_FACTION)
+    if (!step.escortActive && escortee->GetFaction() == DC_ESCORT_IDLE_FACTION)
     {
         SetPhase(context, "escort");
         if (!bot->IsWithinDistInMap(escortee, 5.0f))
@@ -2412,7 +2436,16 @@ bool DcRunEventAction::Execute(Event /*event*/)
         if (idx < ev->steps.size())
         {
             EventStep const& step = ev->steps[idx];
-            if (step.kind == EventStepKind::ClearRadius)
+            if (step.kind == EventStepKind::EscortCreature && step.escortActive)
+            {
+                if (!step.escortActive(bot, context) ||
+                    DungeonEventExecutor::Drive(bot, context, *ev, prog) != EventDriveOutcome::Running)
+                    return false;
+                if (DriveEscortCreature(step, prog))
+                    return true;
+                return false;
+            }
+            else if (step.kind == EventStepKind::ClearRadius)
             {
                 float const r = step.radius > 0.0f ? step.radius : 50.0f;
                 if (Unit* target = DcTargeting::NearestHostileNearPoint(
