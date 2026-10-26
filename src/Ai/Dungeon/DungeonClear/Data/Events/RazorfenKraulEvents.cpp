@@ -48,6 +48,7 @@ void RegisterRazorfenKraulEvents(std::vector<DungeonEvent>& out)
         .Conditional(active)
         .Repeatable()
         .Persistent()
+        .OwnsThePull()
         .StepsOwnMovement()
         .EscortCreature(4508, -1, 0, -1, 5.0f, 18.0f, 8.0f, 80.0f)
         .Build();

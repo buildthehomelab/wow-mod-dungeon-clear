@@ -34,14 +34,15 @@ namespace DcSettings { bool enabled = false; bool GetBool(Player*, char const*) 
 struct AiObjectContext {};
 using EventCondition = std::function<bool(Player*, AiObjectContext*)>;
 struct Step { EventCondition escortActive; unsigned entry = 0; int gossip = 0; };
-struct DungeonEvent { std::vector<Step> steps; EventCondition condition; unsigned map = 0; bool repeat = false, persistent = false, ownsMovement = false; };
+struct DungeonEvent { std::vector<Step> steps; EventCondition condition; unsigned map = 0, mapId = 0, id = 1; std::string name = "Willix"; bool repeat = false, persistent = false, ownsMovement = false, stepsOwnMovement = false, ownsThePull = false; };
 struct EventBuilder {
     DungeonEvent event;
-    EventBuilder(unsigned map, int, char const*) { event.map = map; }
+    EventBuilder(unsigned map, int, char const*) { event.map = event.mapId = map; }
     EventBuilder& Conditional(EventCondition c) { event.condition = c; return *this; }
     EventBuilder& Repeatable() { event.repeat = true; return *this; }
     EventBuilder& Persistent() { event.persistent = true; return *this; }
-    EventBuilder& StepsOwnMovement() { event.ownsMovement = true; return *this; }
+    EventBuilder& OwnsThePull() { event.ownsThePull = true; return *this; }
+    EventBuilder& StepsOwnMovement() { event.ownsMovement = event.stepsOwnMovement = true; return *this; }
     EventBuilder& EscortCreature(unsigned entry, int gossip, unsigned, int, float, float, float, float) { event.steps.push_back({{},entry,gossip}); return *this; }
     DungeonEvent Build() { return event; }
 };
@@ -67,18 +68,38 @@ int main() {
     assert(OwnedEscort(&bot)); bot.alive = false; assert(!OwnedEscort(&bot)); bot.alive = true;
     std::vector<DungeonEvent> events; RegisterRazorfenKraulEvents(events);
     assert(events.size() == 1); auto& e = events[0];
-    assert(e.map == 47 && e.repeat && e.persistent && e.ownsMovement);
+    assert(e.map == 47 && e.repeat && e.persistent && e.ownsMovement && e.ownsThePull);
     assert(e.steps.size() == 1 && e.steps[0].gossip == -1 && e.steps[0].entry == 4508);
     assert(e.condition(&bot,nullptr) && e.steps[0].escortActive(&bot,nullptr));
     owner.quest = 2; assert(!e.steps[0].escortActive(&bot,nullptr));
     DcSettings::enabled = false; assert(!e.condition(&bot,nullptr));
 }
 '''
+def integrity_tests():
+    text=(ROOT/'t/TestEventRegistry.cpp').read_text()
+    result=''
+    for name in ('StepsOwnMovementIsConfinedToVettedEvents','PullOwningEventsAreVetted'):
+        start=text.index('TEST(DungeonEventIntegrityTest, '+name+')')
+        opening=text.index('{',start); depth=1; end=opening+1
+        while depth:
+            if text[end]=='{': depth+=1
+            if text[end]=='}': depth-=1
+            end+=1
+        result+='void '+name+'()'+text[opening:end]+'\n'
+    return result
+
 def main():
     text = (BASE/'Data/Events/RazorfenKraulEvents.cpp').read_text()
     source = '\n'.join(line for line in text.splitlines() if not line.startswith('#include'))
     with tempfile.TemporaryDirectory() as directory:
-        p = Path(directory); (p/'test.cpp').write_text(DOUBLES+source+SCENARIOS)
+        p = Path(directory); (p/'test.cpp').write_text(DOUBLES+source+r'''
+std::vector<DungeonEvent> registered;
+struct DungeonEventRegistry { static std::vector<DungeonEvent> const& AllEvents() { return registered; } };
+struct Check { template<class T> Check& operator<<(T const&) { return *this; } };
+Check checked(bool value) { assert(value); return {}; }
+#define EXPECT_TRUE(value) checked(value)
+'''+integrity_tests()+SCENARIOS.replace('    assert(events.size() == 1);',
+    '    registered=events; StepsOwnMovementIsConfinedToVettedEvents(); PullOwningEventsAreVetted();\n    assert(events.size() == 1);'))
         subprocess.run(['clang++','-std=c++20','-Wall','-Wextra','-Werror',str(p/'test.cpp'),'-o',str(p/'test')],check=True)
         subprocess.run([str(p/'test')],check=True)
     driver=(BASE/'Action/DcEngageActions.cpp').read_text()

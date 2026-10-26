@@ -1273,6 +1273,9 @@ TEST(DungeonEventIntegrityTest, StepsOwnMovementIsConfinedToVettedEvents)
 {
     struct Row { uint32 mapId; uint32 eventId; };
     static constexpr Row kVetted[] = {
+        // RFK Willix: the active quest escort driver follows the moving NPC and
+        // engages its attackers. A generic hold must not cancel those follow steps.
+        {47, 1},
         // Black Morass "Defend Medivh": hook 8 walks the tank into Medivh's 20yd
         // start trigger and holds the Medivh-side hold point, both through the
         // long-haul spline funnel (the portals and the hold point are 80-102yd
@@ -2246,6 +2249,9 @@ TEST(DungeonEventIntegrityTest, PullOwningEventsAreVetted)
 {
     struct Row { uint32 mapId; uint32 eventId; };
     static Row const kVetted[] = {
+        // RFK Willix: an unrelated Advanced pull would outrank the escort and
+        // drag the tank/followers away while Willix walks into his next ambush.
+        {47, 1},
         // Blackwing Lair "Cross the Suppression Rooms". The leg is a TRANSIT, and
         // an advanced pull is the exact opposite of crossing: its Idle branch
         // answers unplanned aggro by walking a fresh camp BACK along the route
@@ -2387,4 +2393,17 @@ TEST(DungeonEventIntegrityTest, SuppressionCrossingOwnsThePull)
     // And persistent, so the crossing keeps its progress across the combat gaps
     // the whelps guarantee.
     EXPECT_TRUE(ev->persistent);
+}
+
+TEST(DungeonEventIntegrityTest, RazorfenKraulEscortOwnsMovementAndPull)
+{
+    DungeonEvent const* ev = DungeonEventRegistry::Find(47, 1);
+    ASSERT_NE(ev, nullptr);
+    EXPECT_TRUE(ev->condition != nullptr);
+    EXPECT_TRUE(ev->ownsThePull);
+    EXPECT_TRUE(ev->stepsOwnMovement);
+    EXPECT_TRUE(ev->persistent);
+    ASSERT_EQ(ev->steps.size(), 1u);
+    EXPECT_EQ(ev->steps.front().kind, EventStepKind::EscortCreature);
+    EXPECT_TRUE(ev->steps.front().escortActive != nullptr);
 }
