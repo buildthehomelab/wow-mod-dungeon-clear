@@ -60,6 +60,10 @@ AC_ADD_SCRIPT("${CMAKE_CURRENT_LIST_DIR}/src")
 
 AC_ADD_CONFIG_FILE("${CMAKE_CURRENT_LIST_DIR}/conf/mod_dungeon_clear.conf.dist")
 
+# New files added: Action/DcLyceumCloseUpAction.cpp, Util/DcLyceumCloseUpDecision.h
+#   (BRD Lyceum: in a fight inside the room every member stands within 15yd of
+#    the tank — the combat-engine rung that walks a member back, plus the
+#    multiplier's veto on stock chase toward a target outside that radius.)
 # New files added: Util/DcDungeonAccess.{h,cpp}
 #   (making a throwaway pool bot ELIGIBLE for the destination. Player::TeleportTo
 #    refuses a far teleport silently in two places — the
@@ -1050,3 +1054,10 @@ AC_ADD_CONFIG_FILE("${CMAKE_CURRENT_LIST_DIR}/conf/mod_dungeon_clear.conf.dist")
 #    rows: Blackwing Lair's Ebonroc (trio B's stand spot) and Flamegor (the
 #    ledge at the foot of Ebonroc's ramp), both walked to one tank spot by the
 #    raid strategy; the pure kernel is gtested, the rows against the map data.)
+# New files added: Util/DcRawPathDrive.h, Util/DcPartyWideChain.{h,cpp},
+#   Util/DcBreathSource.h, Util/DcBreathProvision.{h,cpp},
+#   Data/Events/BlackfathomDeepsEvents.cpp
+#   (Blackfathom Deeps, map 48: party-wide off-mesh chains — the authored
+#    RawPath / Jump steps every bot runs itself, with a fall volume — and water
+#    breathing for the Serra'kis dive: the shaman / warlock / elixir planner,
+#    the EnsureWaterBreathing step and the breath watchdog.)
