@@ -39,6 +39,7 @@
 #include "Ai/Dungeon/DungeonClear/DcValueKeys.h"
 #include "Ai/Dungeon/DungeonClear/Overrides/ObjectiveHookRegistry.h"
 #include "Ai/Dungeon/DungeonClear/Util/DcRun.h"
+#include "Ai/Dungeon/DungeonClear/Settings/DcSettings.h"
 #include "Ai/Dungeon/DungeonClear/Util/DcStatusPublisher.h"
 #include "Ai/Dungeon/DungeonClear/Util/DcTargeting.h"
 #include "Ai/Dungeon/DungeonClear/Util/DungeonEventExecutor.h"
@@ -478,7 +479,22 @@ namespace
         if (!inst)
             return ObjectiveArriveResult::Running;
         uint32 const state = inst->GetData(TYPE_TOMB_OF_SEVEN);
-        if (state == STATE_IN_PROGRESS || state == STATE_DONE)
+        // The pinned Evermore core predates AzerothCore #28271: once all seven
+        // ghosts wake, TombOfSevenEvent can index past TombBossGUIDs. Keep the
+        // objective (and script-only doors) in place, but never auto-challenge
+        // Doom'rel until an administrator confirms the repaired core is deployed.
+        // A completed tomb needs no challenge and may pass on either setting.
+        if (state == STATE_DONE)
+            return ObjectiveArriveResult::Done;
+        if (!DcSettings::GetBool(bot, "EnableBRDTombOfSeven"))
+        {
+            LOG_ERROR("playerbots.dungeonclear",
+                      "[DC:{}] Tomb of the Seven automation disabled: deploy the core "
+                      "TombEventCounter bounds fix (AzerothCore #28271) before enabling "
+                      "DungeonClear.EnableBRDTombOfSeven", bot->GetName());
+            return ObjectiveArriveResult::Blocked;
+        }
+        if (state == STATE_IN_PROGRESS)
             return ObjectiveArriveResult::Done;
 
         Group* group = bot->GetGroup();

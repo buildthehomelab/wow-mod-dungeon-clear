@@ -2109,3 +2109,10 @@ DungeonClear.BgQueueFill.GearQuality = 0
 #
 
 DungeonClear.BgQueueFill.LogoutOnRelease = 1
+
+# Evermore compatibility gate. The current core pin predates AzerothCore #28271
+# (TombEventCounter bounds fix). Deploy a separately reviewed core fix and update
+# its server pin before enabling automatic Doom'rel challenges. Default 0 stops
+# the Tomb objective visibly; it never opens the script-only doors or skips it.
+# Server-only: players cannot override this through the addon.
+DungeonClear.EnableBRDTombOfSeven = 0
