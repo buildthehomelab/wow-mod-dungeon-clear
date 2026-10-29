@@ -167,6 +167,9 @@ inline constexpr DcSettingDef kDcSettings[] =
     // time never burns the budget). The timeout is generous by design: it must
     // cover the rezzer drinking back the mana to afford the cast. OFF restores
     // the classic disable-on-first-death. See Util/DcRezDecision.h.
+    // Server-only opt-in: requires the TombEventCounter bounds fix (#28271)
+    // in the deployed core. Keep the anchored objective as a visible stop.
+    { "EnableBRDTombOfSeven",     DcType::Bool,   0,  0,   1,  false },
     { "PostCombatRez",            DcType::Bool,   1,  0,   1,  true  },
     // Raid layer: many more corpses to walk between and drink for — the 5-man
     // budget ends winnable raid recoveries early (Plan B's multi-rezzer election

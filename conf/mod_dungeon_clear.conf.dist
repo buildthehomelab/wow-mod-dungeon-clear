@@ -174,6 +174,8 @@ DungeonClear.BetterLootRolling = 0
 #        creature corpses. Keeps the run from detouring to — and getting stuck
 #        navigating around — chests the party doesn't need. Disable to restore
 #        the old behaviour of looting reachable chests along the route.
+#        Encounter chests — the ones a boss's loot spawns in, e.g. BRD's
+#        Chest of the Seven — are always looted either way.
 #            0 = loot chests too      1 = ignore chests (corpses only)
 #
 #        Default: 1 (ignore chests)
@@ -2107,3 +2109,10 @@ DungeonClear.BgQueueFill.GearQuality = 0
 #
 
 DungeonClear.BgQueueFill.LogoutOnRelease = 1
+
+# Evermore compatibility gate. The current core pin predates AzerothCore #28271
+# (TombEventCounter bounds fix). Deploy a separately reviewed core fix and update
+# its server pin before enabling automatic Doom'rel challenges. Default 0 stops
+# the Tomb objective visibly; it never opens the script-only doors or skips it.
+# Server-only: players cannot override this through the addon.
+DungeonClear.EnableBRDTombOfSeven = 0
