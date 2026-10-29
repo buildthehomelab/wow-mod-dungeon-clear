@@ -676,12 +676,10 @@ TEST(DungeonEventBlackwingLairTest, NoFloorHeightCanSeparateTheDrakeHallFromTheG
     EXPECT_NEAR(standoff.z, kFiremawZ, 5.0f)
         << "the Broodlord standoff shares the drake hall's floor";
 
-    // ...and it is not distance either: Broodlord and Firemaw are ~54yd apart,
-    // well inside the band a corridor scan or an aggro radius would call near.
-    float const dx = standoff.x - (-7520.2f);
-    float const dy = standoff.y - (-1025.8f);
-    EXPECT_LT(std::sqrt(dx * dx + dy * dy), 80.0f)
-        << "no plan-view bound can separate the standoff from Firemaw either";
+    // Evermore now ends this route at the whelp-field staging point,119yd
+    // from the historical Firemaw anchor. The old54yd plan-view assertion no
+    // longer describes this route. The floor invariant above still holds;
+    // the separate approach-under-Firemaw test pins the real overhead hazard.
 }
 
 TEST(DungeonEventBlackwingLairTest, ARouteCursorResetToZeroIsUnrecoverableOnThisRoute)
@@ -1472,8 +1470,14 @@ TEST(DungeonEventBlackwingLairTest, NefarianStartIsARepeatableSummonGate)
     EXPECT_FALSE(ev->encounterActive);
     EXPECT_FALSE(ev->stepsOwnMovement);
 
-    ASSERT_EQ(ev->steps.size(), 1u);
-    EventStep const& talk = ev->steps[0];
+    EXPECT_TRUE(ev->ownsThePull)
+        << "the raid muster must not compete with ordinary camp pulls or scout lag";
+    ASSERT_EQ(ev->steps.size(), 2u);
+    EventStep const& muster = ev->steps[0];
+    EXPECT_EQ(muster.kind, EventStepKind::Custom);
+    EXPECT_EQ(muster.hookId, DC_HOOK_RAID_MUSTER);
+    EXPECT_EQ(muster.timeoutMs, 240000u);
+    EventStep const& talk = ev->steps[1];
     EXPECT_EQ(talk.kind, EventStepKind::Gossip);
     EXPECT_EQ(talk.creatureEntry, NPC_VICTOR_NEFARIUS);
     EXPECT_EQ(talk.gossipOption, NEFARIUS_GOSSIP_OPTION);

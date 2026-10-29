@@ -2286,6 +2286,9 @@ TEST(DungeonEventIntegrityTest, PullOwningEventsAreVetted)
         // sibling run at 102yd), transit cursor falling 10/19 -> 6/19 and
         // re-walking the same four anchors — the tank ran the gauntlet backwards.
         {469, 3},
+        // Evermore's Nefarian start: muster the whole raid before gossip in a
+        // trash-free lair. Camp pulls and scout-lag must not split the muster.
+        {469, 5},
         // Halls of Lightning "Cross the Slag Furnace". Same reason, plus one this
         // map has on its own: the pull's Idle branch drags a camp BACKWARD looking
         // for ground clear of hostiles, which among fourteen Slags on a 20s
