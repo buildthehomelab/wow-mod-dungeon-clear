@@ -4,6 +4,7 @@
 This is a compatibility-gate regression, not a core ABI or event executor test.
 Run from any directory; requires a C++17 compiler (CXX, otherwise clang++).
 """
+import argparse
 import os
 from pathlib import Path
 import re
@@ -12,6 +13,9 @@ import subprocess
 import tempfile
 
 ROOT = Path(__file__).resolve().parents[1]
+parser = argparse.ArgumentParser(description=__doc__)
+parser.add_argument('--coverage-dir', type=Path, help='retain LLVM-instrumented test source and binary')
+args = parser.parse_args()
 SOURCE = ROOT / "src/Ai/Dungeon/DungeonClear/Data/Events/BlackrockDepthsEvents.cpp"
 text = SOURCE.read_text()
 start = text.index("    ObjectiveArriveResult TombMuster(")
@@ -68,13 +72,13 @@ struct Player {
     std::string GetName() { return "test"; }
 };
 struct InstanceScript { uint32 state=0; uint32 GetData(uint32) { return state; } } instance;
-bool hasInstance=true, enabled=false;
+bool hasInstance=true, enabled=false, throttled=true;
 int logs=0;
 namespace DcTargeting { InstanceScript* GetInstanceScript(Player*) { return hasInstance ? &instance : nullptr; } }
 namespace DcSettings { bool GetBool(Player*, char const* key) { assert(std::strcmp(key,"EnableBRDTombOfSeven")==0); return enabled; } }
 namespace DcThrottle { constexpr int BrdEventLog=1; }
 namespace DcRun {
-    struct Run { bool Throttled(int, int) { return true; } } run;
+    struct Run { bool Throttled(int, int) { return throttled; } } run;
     Run& Of(AiObjectContext*) { return run; }
 }
 #define LOG_ERROR(...) (++logs)
@@ -97,21 +101,34 @@ int main() {
     instance.state=STATE_NOT_STARTED; assert(eval()==R::Done); // no group
     GroupReference ref{&member}; Group group{&ref}; bot.group=&group;
     member.distance=100; assert(eval()==R::Running);
+    throttled=false; assert(eval()==R::Running); throttled=true;
     member.distance=0; member.z=10; assert(eval()==R::Running);
     member.z=0; assert(eval()==R::Done);
     member.distance=100; member.alive=false; assert(eval()==R::Done);
     member.alive=true; member.world=false; assert(eval()==R::Done);
     member.world=true; member.map=1; assert(eval()==R::Done);
+    ref.p=nullptr; assert(eval()==R::Done);
+    group.first=nullptr; assert(eval()==R::Done);
     enabled=false; assert(eval()==R::Blocked); // opt-in withdrawn
     instance.state=STATE_DONE; assert(eval()==R::Done);
     assert(logs==5);
 }
 '''
-with tempfile.TemporaryDirectory(prefix='dc-tomb-gate-') as tmp:
+def run(tmp, coverage=False):
     cpp = Path(tmp) / 'gate.cpp'
     binary = Path(tmp) / 'gate'
-    cpp.write_text(prelude + function + cases)
+    source_line = text[:start].count('\n') + 1
+    cpp.write_text(prelude + f'\n#line {source_line} "{SOURCE}"\n' + function +
+                   '\n#line 1 "gate-cases.cpp"\n' + cases)
+    flags = ['-fprofile-instr-generate', '-fcoverage-mapping'] if coverage else []
     subprocess.run(shlex.split(os.environ.get('CXX', 'clang++')) +
-                   ['-std=c++17', '-Wall', '-Wextra', '-Werror', str(cpp), '-o', str(binary)], check=True)
+                   ['-std=c++17', '-Wall', '-Wextra', '-Werror'] + flags +
+                   [str(cpp), '-o', str(binary)], check=True)
     subprocess.run([str(binary)], check=True)
+if args.coverage_dir:
+    args.coverage_dir.mkdir(parents=True, exist_ok=True)
+    run(args.coverage_dir, coverage=True)
+else:
+    with tempfile.TemporaryDirectory(prefix='dc-tomb-gate-') as tmp:
+        run(tmp)
 print('Tomb gate: actual source execution and registration/settings checks passed')
