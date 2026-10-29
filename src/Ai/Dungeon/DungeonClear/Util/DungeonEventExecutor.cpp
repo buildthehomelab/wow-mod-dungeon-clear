@@ -200,7 +200,8 @@ namespace
     // strand on the lip. Once the leader has landed, relocate any party BOT still
     // stuck on the far side to the tank. (A follower jump would hit the same
     // missing mesh; the teleport is the robust fix and is user-sanctioned.)
-    void PullStrandedFollowersAcross(Player* leader, float lx, float ly, float lz)
+    void PullStrandedFollowersAcross(Player* leader, float lx, float ly, float lz,
+                                      DungeonEvent const* chain = nullptr)
     {
         Group* group = leader->GetGroup();
         if (!group)
@@ -218,7 +219,8 @@ namespace
                 continue;
             if (!member->IsInWorld() || !member->IsAlive())
                 continue;
-            if (member->GetMapId() != leader->GetMapId())
+            if (member->GetMapId() != leader->GetMapId() ||
+                member->GetInstanceId() != leader->GetInstanceId())
                 continue;
             if (!GET_PLAYERBOT_AI(member))  // only relocate bots, never a human
                 continue;
@@ -228,7 +230,16 @@ namespace
             // DcStrandedRecovery.
             if (member->GetVehicle())
                 continue;
-            if (member->GetExactDist(lx, ly, lz) <= DC_JUMP_STRANDED_DIST)
+            // Nearby is not across on disconnected islands: BFD's final
+            // take-off is only ~7yd from the landing. An unfinished (or stale)
+            // party-wide chain must be rescued before it is marked done even
+            // inside the legacy15yd net. Completed chains retain that distance
+            // allowance; leader-only relocations retain their existing policy.
+            DcChainState const* fs = chain ? DcPartyWideChain::StateOf(member) : nullptr;
+            bool const unfinished = chain &&
+                (!fs || fs->eventId != chain->id || fs->mapId != chain->mapId ||
+                 fs->instanceId != member->GetInstanceId() || !fs->done || fs->needsRescue);
+            if (!unfinished && member->GetExactDist(lx, ly, lz) <= DC_JUMP_STRANDED_DIST)
                 continue;                   // already across
 
             // Land them ON the landing, fanned out a little so they don't stack on
@@ -278,7 +289,7 @@ namespace
             ly = step.path.back().y;
             lz = step.path.back().z;
         }
-        PullStrandedFollowersAcross(bot, lx, ly, lz);
+        PullStrandedFollowersAcross(bot, lx, ly, lz, ev);
         DcPartyWideChain::FinishFollowerChains(bot, *ev);
         LOG_INFO("playerbots.dungeonclear",
                  "[DC:{}] chain '{}': complete — {} fall(s) this run",

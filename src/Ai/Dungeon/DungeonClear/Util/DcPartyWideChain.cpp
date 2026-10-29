@@ -228,7 +228,8 @@ namespace
             Player* m = ref->GetSource();
             if (!m || m == leader || !m->IsInWorld() || !GET_PLAYERBOT_AI(m))
                 continue;
-            if (m->GetMapId() != leader->GetMapId())
+            if (m->GetMapId() != leader->GetMapId() ||
+                m->GetInstanceId() != leader->GetInstanceId())
                 continue;
             out.push_back(m);
         }
@@ -410,6 +411,7 @@ bool DcPartyWideChain::DriveFollower(Player* bot, PlayerbotAI* botAI, AiObjectCo
                      "[DC:{}] chain '{}': step {} stalled -> leaving the chain to the straggler net",
                      bot->GetName(), ev.name, st.stepIndex);
             st.done = true;
+            st.needsRescue = true;
             return false;
     }
     return false;
@@ -446,10 +448,15 @@ void DcPartyWideChain::FinishFollowerChains(Player* leader, DungeonEvent const& 
 {
     for (Player* f : FollowerBots(leader))
     {
+        // The rescue excludes corpses and riders; do not finalize a chain
+        // that could not be relocated. It can resume after resurrection/dismount.
+        if (!f->IsAlive() || f->GetVehicle())
+            continue;
         DcChainState* fs = StateOf(f);
         if (!fs)
             continue;
-        if (fs->eventId != ev.id)
+        if (fs->eventId != ev.id || fs->mapId != ev.mapId ||
+            fs->instanceId != f->GetInstanceId())
         {
             fs->Reset();
             fs->ev = &ev;
@@ -462,6 +469,7 @@ void DcPartyWideChain::FinishFollowerChains(Player* leader, DungeonEvent const& 
             fs->startedMs = fs->startedMs ? fs->startedMs : getMSTime();
             fs->done = true;
         }
+        fs->needsRescue = false;
     }
 }
 

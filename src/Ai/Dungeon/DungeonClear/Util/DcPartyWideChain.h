@@ -41,6 +41,9 @@ struct DcChainState
     uint32 startedMs{0};      // 0 => released but not yet started / not released
     uint32 stepStartMs{0};
     bool   done{false};
+    // A stalled follower stops driving but has not crossed. The final net
+    // must rescue it even though done releases the next follower.
+    bool   needsRescue{false};
 
     // Active-step scratch: the RawPath cursor + watchdog, the Jump launch stamp.
     uint32 cursor{0};
