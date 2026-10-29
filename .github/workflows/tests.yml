@@ -71,6 +71,11 @@ jobs:
       - name: MSVC portability lint
         run: python3 modules/mod-dungeon-clear/tools/check_msvc_portability.py
 
+      - name: Evermore behavioral source regressions
+        run: |
+          python3 modules/mod-dungeon-clear/tools/test_evermore_tomb_gate.py
+          python3 modules/mod-dungeon-clear/tools/test_chain_straggler_rescue.py
+
       # 3. Build the core deps + the test target. ccache makes repeat runs cheap.
       - name: Install build dependencies
         run: |
@@ -130,9 +135,7 @@ jobs:
       - name: Run suite
         working-directory: build
         run: |
-          ./dungeon_clear_tests \
-            --gtest_filter='*DungeonClear*:Dc*:RoomAggro*:BossRoster*:DungeonEvent*:EventBuilder*' \
-            --gtest_output=xml:dc_tests.xml
+          ./dungeon_clear_tests --gtest_output=xml:dc_tests.xml
 
       - name: Upload results
         if: always()
